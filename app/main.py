@@ -25,12 +25,18 @@ logger = logging.getLogger("speech_backend")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Auto-create tables in development mode if running SQLite / initial setup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info(f"Speech Therapy Backend started in {settings.ENVIRONMENT} mode.")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info(f"Speech Therapy Backend started in {settings.ENVIRONMENT} mode.")
+    except Exception as e:
+        logger.error(f"Non-critical startup table sync notice: {e}")
     yield
-    await engine.dispose()
-    logger.info("Database connection closed.")
+    try:
+        await engine.dispose()
+        logger.info("Database connection closed.")
+    except Exception as e:
+        logger.error(f"Database shutdown notice: {e}")
 
 app = FastAPI(
     title="Speech Therapy & Articulation Core Backend",
@@ -73,11 +79,16 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
 # 4. Public Health Endpoints
+@app.get("/", tags=["Health"])
 @app.get("/health", tags=["Health"])
 @app.get("/health/live", tags=["Health"])
 async def liveness_health_check():
     """Liveness check probe."""
-    return {"status": "ok"}
+    return {
+        "service": "Speech Therapy & Articulation Core Backend",
+        "version": "1.0.0",
+        "status": "ok"
+    }
 
 @app.get("/health/ready", tags=["Health"])
 async def readiness_health_check():
