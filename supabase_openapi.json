@@ -1,0 +1,4170 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "",
+    "title": "standard public schema",
+    "version": "14.5"
+  },
+  "host": "fwrkrpmqmqxlgvyzrizq.supabase.co:443",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "produces": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "produces": [
+          "application/openapi+json",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "OpenAPI description (this document)",
+        "tags": [
+          "Introspection"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.password_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.auth_provider"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.google_subject"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/users"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.users"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.password_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.auth_provider"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.google_subject"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.password_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.auth_provider"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.google_subject"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.users"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/auth_tokens": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.used_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/auth_tokens"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "auth_tokens"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.auth_tokens"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "auth_tokens"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.used_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "auth_tokens"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.token_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.used_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.auth_tokens.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.auth_tokens"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "auth_tokens"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.notifications.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.icon"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.is_read"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/notifications"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.notifications"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.notifications.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.icon"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.is_read"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.notifications.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.icon"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.notifications.is_read"
+          },
+          {
+            "$ref": "#/parameters/body.notifications"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/admins": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/admins"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.admins"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.admins"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      }
+    },
+    "/availability": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.availability.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.day"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/availability"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.availability"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.availability.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.day"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.availability.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.day"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.is_active"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.availability.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.availability"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "availability"
+        ]
+      }
+    },
+    "/refresh_sessions": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.refresh_token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.family_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.is_revoked"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/refresh_sessions"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "refresh_sessions"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.refresh_sessions"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "refresh_sessions"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.refresh_token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.family_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.is_revoked"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "refresh_sessions"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.refresh_token_hash"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.family_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.is_revoked"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.refresh_sessions.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.refresh_sessions"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "refresh_sessions"
+        ]
+      }
+    },
+    "/focus_sound": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.sound"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.progress"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/focus_sound"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "focus_sound"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.focus_sound"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "focus_sound"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.sound"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.progress"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "focus_sound"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.sound"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.progress"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.focus_sound.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.focus_sound"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "focus_sound"
+        ]
+      }
+    },
+    "/appointments": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.appointments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.appointment_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.status"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/appointments"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "appointments"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.appointments"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "appointments"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.appointments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.appointment_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.status"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "appointments"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.appointments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.appointment_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.start_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.end_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.appointments.status"
+          },
+          {
+            "$ref": "#/parameters/body.appointments"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "appointments"
+        ]
+      }
+    },
+    "/daily_tips": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.tip_text"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/daily_tips"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "daily_tips"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.daily_tips"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "daily_tips"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.tip_text"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "daily_tips"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.daily_tips.tip_text"
+          },
+          {
+            "$ref": "#/parameters/body.daily_tips"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "daily_tips"
+        ]
+      }
+    },
+    "/therapists": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.therapists.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.qualification"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.license_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.years_of_experience"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.languages_spoken"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.consultation_fee"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.doctor_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/therapists"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "therapists"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.therapists"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "therapists"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.therapists.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.qualification"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.license_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.years_of_experience"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.languages_spoken"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.consultation_fee"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.doctor_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "therapists"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.therapists.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.qualification"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.license_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.years_of_experience"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.languages_spoken"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.consultation_fee"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.doctor_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.therapists.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.therapists"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "therapists"
+        ]
+      }
+    },
+    "/profiles": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.parent_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.child_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.doctor_uid"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/profiles"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.parent_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.child_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.doctor_uid"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.parent_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.child_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.doctor_uid"
+          },
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/attempts": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.attempts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.level_key"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.attempted_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/attempts"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "attempts"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.attempts"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "attempts"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.attempts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.level_key"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.attempted_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "attempts"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.attempts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.alphabet_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.level_key"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.attempts.attempted_at"
+          },
+          {
+            "$ref": "#/parameters/body.attempts"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "attempts"
+        ]
+      }
+    },
+    "/patients": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patients.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.practice_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.accuracy"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/patients"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "patients"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.patients"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "patients"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patients.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.practice_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.accuracy"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "patients"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patients.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.practice_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.accuracy"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patients.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.patients"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "patients"
+        ]
+      }
+    },
+    "/patient_requests": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/patient_requests"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "patient_requests"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.patient_requests"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "patient_requests"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "patient_requests"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.doctor_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.age"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.phone"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.parent_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.patient_uid"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.patient_requests.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.patient_requests"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "patient_requests"
+        ]
+      }
+    },
+    "/rpc/current_app_uid": {
+      "get": {
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) current_app_uid"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) current_app_uid"
+        ]
+      }
+    },
+    "/rpc/doctor_patient_attempts": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_uid": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_uid"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) doctor_patient_attempts"
+        ]
+      }
+    },
+    "/rpc/is_admin": {
+      "get": {
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) is_admin"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) is_admin"
+        ]
+      }
+    },
+    "/rpc/safe_auth_uid": {
+      "get": {
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) safe_auth_uid"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) safe_auth_uid"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "users": {
+      "required": [
+        "id",
+        "email",
+        "role",
+        "auth_provider",
+        "is_verified",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "email": {
+          "format": "text",
+          "type": "string"
+        },
+        "password_hash": {
+          "format": "text",
+          "type": "string"
+        },
+        "role": {
+          "default": "patient",
+          "format": "text",
+          "type": "string"
+        },
+        "auth_provider": {
+          "default": "password",
+          "format": "text",
+          "type": "string"
+        },
+        "google_subject": {
+          "format": "text",
+          "type": "string"
+        },
+        "is_verified": {
+          "default": false,
+          "format": "boolean",
+          "type": "boolean"
+        },
+        "is_active": {
+          "default": true,
+          "format": "boolean",
+          "type": "boolean"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "auth_tokens": {
+      "required": [
+        "id",
+        "user_id",
+        "token_hash",
+        "token_type",
+        "expires_at",
+        "created_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `users.id`.<fk table='users' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "token_hash": {
+          "format": "text",
+          "type": "string"
+        },
+        "token_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "used_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "notifications": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "icon": {
+          "format": "text",
+          "type": "string"
+        },
+        "message": {
+          "format": "text",
+          "type": "string"
+        },
+        "is_read": {
+          "default": false,
+          "format": "boolean",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "admins": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "availability": {
+      "required": [
+        "id",
+        "doctor_id",
+        "day",
+        "start_time",
+        "end_time",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "doctor_id": {
+          "description": "Note:\nThis is a Foreign Key to `therapists.id`.<fk table='therapists' column='id'/>",
+          "format": "text",
+          "type": "string"
+        },
+        "day": {
+          "format": "text",
+          "type": "string"
+        },
+        "start_time": {
+          "format": "time without time zone",
+          "type": "string"
+        },
+        "end_time": {
+          "format": "time without time zone",
+          "type": "string"
+        },
+        "is_active": {
+          "default": true,
+          "format": "boolean",
+          "type": "boolean"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "refresh_sessions": {
+      "required": [
+        "id",
+        "user_id",
+        "refresh_token_hash",
+        "family_id",
+        "is_revoked",
+        "expires_at",
+        "created_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `users.id`.<fk table='users' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "refresh_token_hash": {
+          "format": "text",
+          "type": "string"
+        },
+        "family_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "is_revoked": {
+          "default": false,
+          "format": "boolean",
+          "type": "boolean"
+        },
+        "expires_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "focus_sound": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "sound": {
+          "format": "text",
+          "type": "string"
+        },
+        "alphabet_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "progress": {
+          "default": 0,
+          "format": "double precision",
+          "type": "number"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "appointments": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "doctor_id": {
+          "description": "Note:\nThis is a Foreign Key to `therapists.id`.<fk table='therapists' column='id'/>",
+          "format": "text",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "patient_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "appointment_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "start_time": {
+          "format": "time without time zone",
+          "type": "string"
+        },
+        "end_time": {
+          "format": "time without time zone",
+          "type": "string"
+        },
+        "status": {
+          "default": "confirmed",
+          "format": "text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "daily_tips": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "tip_text": {
+          "format": "text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "therapists": {
+      "required": [
+        "id",
+        "full_name",
+        "email",
+        "phone",
+        "qualification",
+        "license_number",
+        "years_of_experience",
+        "languages_spoken",
+        "consultation_fee",
+        "status",
+        "rating",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "text",
+          "type": "string"
+        },
+        "full_name": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "email": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "phone": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "qualification": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "license_number": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "years_of_experience": {
+          "default": 0,
+          "format": "integer",
+          "type": "integer"
+        },
+        "languages_spoken": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "consultation_fee": {
+          "default": 0,
+          "format": "numeric",
+          "type": "number"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "doctor_code": {
+          "format": "text",
+          "type": "string"
+        },
+        "rating": {
+          "default": 0,
+          "format": "numeric",
+          "type": "number"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "profiles": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "parent_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "child_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "doctor_uid": {
+          "format": "text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "attempts": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "bigint",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "text",
+          "type": "string"
+        },
+        "alphabet_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "level_key": {
+          "format": "text",
+          "type": "string"
+        },
+        "score": {
+          "format": "bigint",
+          "type": "integer"
+        },
+        "attempted_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "patients": {
+      "required": [
+        "id",
+        "doctor_id",
+        "name",
+        "practice_code",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "doctor_id": {
+          "description": "Note:\nThis is a Foreign Key to `therapists.id`.<fk table='therapists' column='id'/>",
+          "format": "text",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "age": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "condition": {
+          "format": "text",
+          "type": "string"
+        },
+        "phone": {
+          "format": "text",
+          "type": "string"
+        },
+        "parent_email": {
+          "format": "text",
+          "type": "string"
+        },
+        "notes": {
+          "format": "text",
+          "type": "string"
+        },
+        "practice_code": {
+          "format": "text",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "accuracy": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "patient_requests": {
+      "required": [
+        "id",
+        "doctor_id",
+        "patient_name",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "doctor_id": {
+          "description": "Note:\nThis is a Foreign Key to `therapists.id`.<fk table='therapists' column='id'/>",
+          "format": "text",
+          "type": "string"
+        },
+        "patient_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "condition": {
+          "format": "text",
+          "type": "string"
+        },
+        "age": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "notes": {
+          "format": "text",
+          "type": "string"
+        },
+        "phone": {
+          "format": "text",
+          "type": "string"
+        },
+        "parent_email": {
+          "format": "text",
+          "type": "string"
+        },
+        "patient_uid": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "parameters": {
+    "preferParams": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "preferReturn": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferCount": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "count=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferPost": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none",
+        "resolution=ignore-duplicates",
+        "resolution=merge-duplicates"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "select": {
+      "name": "select",
+      "description": "Filtering Columns",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "on_conflict": {
+      "name": "on_conflict",
+      "description": "On Conflict",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "order": {
+      "name": "order",
+      "description": "Ordering",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "range": {
+      "name": "Range",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "rangeUnit": {
+      "name": "Range-Unit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "default": "items",
+      "in": "header",
+      "type": "string"
+    },
+    "offset": {
+      "name": "offset",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "limit": {
+      "name": "limit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.users": {
+      "name": "users",
+      "description": "users",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/users"
+      }
+    },
+    "rowFilter.users.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.password_hash": {
+      "name": "password_hash",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.role": {
+      "name": "role",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.auth_provider": {
+      "name": "auth_provider",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.google_subject": {
+      "name": "google_subject",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.is_verified": {
+      "name": "is_verified",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.is_active": {
+      "name": "is_active",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.auth_tokens": {
+      "name": "auth_tokens",
+      "description": "auth_tokens",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/auth_tokens"
+      }
+    },
+    "rowFilter.auth_tokens.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.token_hash": {
+      "name": "token_hash",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.token_type": {
+      "name": "token_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.expires_at": {
+      "name": "expires_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.used_at": {
+      "name": "used_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.auth_tokens.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.notifications": {
+      "name": "notifications",
+      "description": "notifications",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/notifications"
+      }
+    },
+    "rowFilter.notifications.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.notifications.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.notifications.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.notifications.icon": {
+      "name": "icon",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.notifications.message": {
+      "name": "message",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.notifications.is_read": {
+      "name": "is_read",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.admins": {
+      "name": "admins",
+      "description": "admins",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/admins"
+      }
+    },
+    "rowFilter.admins.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.availability": {
+      "name": "availability",
+      "description": "availability",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/availability"
+      }
+    },
+    "rowFilter.availability.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.doctor_id": {
+      "name": "doctor_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.day": {
+      "name": "day",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.start_time": {
+      "name": "start_time",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.end_time": {
+      "name": "end_time",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.is_active": {
+      "name": "is_active",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.availability.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.refresh_sessions": {
+      "name": "refresh_sessions",
+      "description": "refresh_sessions",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/refresh_sessions"
+      }
+    },
+    "rowFilter.refresh_sessions.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.refresh_token_hash": {
+      "name": "refresh_token_hash",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.family_id": {
+      "name": "family_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.is_revoked": {
+      "name": "is_revoked",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.expires_at": {
+      "name": "expires_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.refresh_sessions.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.focus_sound": {
+      "name": "focus_sound",
+      "description": "focus_sound",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/focus_sound"
+      }
+    },
+    "rowFilter.focus_sound.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.sound": {
+      "name": "sound",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.alphabet_name": {
+      "name": "alphabet_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.progress": {
+      "name": "progress",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.focus_sound.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.appointments": {
+      "name": "appointments",
+      "description": "appointments",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/appointments"
+      }
+    },
+    "rowFilter.appointments.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.doctor_id": {
+      "name": "doctor_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.patient_name": {
+      "name": "patient_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.appointment_date": {
+      "name": "appointment_date",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.start_time": {
+      "name": "start_time",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.end_time": {
+      "name": "end_time",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.appointments.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.daily_tips": {
+      "name": "daily_tips",
+      "description": "daily_tips",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/daily_tips"
+      }
+    },
+    "rowFilter.daily_tips.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.daily_tips.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.daily_tips.tip_text": {
+      "name": "tip_text",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.therapists": {
+      "name": "therapists",
+      "description": "therapists",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/therapists"
+      }
+    },
+    "rowFilter.therapists.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.full_name": {
+      "name": "full_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.phone": {
+      "name": "phone",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.qualification": {
+      "name": "qualification",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.license_number": {
+      "name": "license_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.years_of_experience": {
+      "name": "years_of_experience",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.languages_spoken": {
+      "name": "languages_spoken",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.consultation_fee": {
+      "name": "consultation_fee",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.doctor_code": {
+      "name": "doctor_code",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.rating": {
+      "name": "rating",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.therapists.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.profiles": {
+      "name": "profiles",
+      "description": "profiles",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/profiles"
+      }
+    },
+    "rowFilter.profiles.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.parent_name": {
+      "name": "parent_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.child_name": {
+      "name": "child_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.doctor_uid": {
+      "name": "doctor_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.attempts": {
+      "name": "attempts",
+      "description": "attempts",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/attempts"
+      }
+    },
+    "rowFilter.attempts.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.item_id": {
+      "name": "item_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.alphabet_name": {
+      "name": "alphabet_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.level_key": {
+      "name": "level_key",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.score": {
+      "name": "score",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.attempts.attempted_at": {
+      "name": "attempted_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.patients": {
+      "name": "patients",
+      "description": "patients",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/patients"
+      }
+    },
+    "rowFilter.patients.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.doctor_id": {
+      "name": "doctor_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.age": {
+      "name": "age",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.condition": {
+      "name": "condition",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.phone": {
+      "name": "phone",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.parent_email": {
+      "name": "parent_email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.notes": {
+      "name": "notes",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.practice_code": {
+      "name": "practice_code",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.accuracy": {
+      "name": "accuracy",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patients.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.patient_requests": {
+      "name": "patient_requests",
+      "description": "patient_requests",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/patient_requests"
+      }
+    },
+    "rowFilter.patient_requests.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.doctor_id": {
+      "name": "doctor_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.patient_name": {
+      "name": "patient_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.condition": {
+      "name": "condition",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.age": {
+      "name": "age",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.notes": {
+      "name": "notes",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.phone": {
+      "name": "phone",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.parent_email": {
+      "name": "parent_email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.patient_uid": {
+      "name": "patient_uid",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.patient_requests.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    }
+  },
+  "externalDocs": {
+    "description": "PostgREST Documentation",
+    "url": "https://postgrest.org/en/v14/references/api.html"
+  }
+}

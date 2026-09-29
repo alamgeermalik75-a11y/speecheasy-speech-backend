@@ -1,0 +1,32 @@
+# Environment variables (CRITICAL: Do NOT commit secrets)
+.env
+.env.*
+!.env.example
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE & Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local SQLite databases & logs
+*.db
+*.sqlite3
+speecheasy.db
+*.log
