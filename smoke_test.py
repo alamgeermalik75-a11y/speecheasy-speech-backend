@@ -2,7 +2,9 @@ import urllib.request
 import urllib.error
 import json
 
-BASE_URL = "http://127.0.0.1:8000"
+import os
+
+BASE_URL = os.environ.get("BASE_URL", "https://speecheasy-speech-backend-production.up.railway.app")
 DEV_UID = "test-patient-smoke-123"
 
 def request(name, path, method="GET", body=None, headers=None):
