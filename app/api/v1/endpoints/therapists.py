@@ -86,23 +86,20 @@ async def request_therapist_registration(
     if doctor.status != "approved":
         raise BadRequestException("Cannot request an unapproved doctor")
 
-    # 3. Check if already linked in patients table
-    linked_stmt = select(Patient).where(
-        and_(Patient.patient_uid == current_uid, Patient.doctor_id == data.doctor_id)
-    )
+    # 3. Rule 1, 2, 4: Enforce patient can have only ONE active doctor
+    linked_stmt = select(Patient).where(Patient.patient_uid == current_uid)
     if (await db.execute(linked_stmt)).scalar_one_or_none():
-        raise ConflictException("You are already registered with this doctor.")
+        raise ConflictException("You are already registered with a doctor. You must first unregister from your current doctor before requesting another doctor.")
 
-    # 4. Check if pending request exists
+    # 4. Rule 5: Prevent duplicate or parallel doctor requests
     pending_stmt = select(PatientRequest).where(
         and_(
             PatientRequest.patient_uid == current_uid,
-            PatientRequest.doctor_id == data.doctor_id,
             PatientRequest.status == "pending"
         )
     )
     if (await db.execute(pending_stmt)).scalar_one_or_none():
-        raise ConflictException("You already have a pending registration request with this doctor.")
+        raise ConflictException("You already have a pending registration request. You can only request one doctor at a time. Please wait for a response or cancel it first.")
 
     # 5. Insert request
     child_name = profile.child_name or "Child"
@@ -199,6 +196,78 @@ async def unregister_my_doctor(
     await db.commit()
     return None
 
+@router.post("/requests/{request_id}/accept")
+async def accept_patient_request(
+    request_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Doctor/System accepts a patient registration request.
+    Atomically links patient with the doctor, rejects other pending requests,
+    and inserts an immediate in-app notification.
+    """
+    if settings.SUPABASE_SERVICE_ROLE_KEY:
+        return SupabaseDbService.accept_patient_request(request_id)
+
+    # Local DB fallback
+    req = (await db.execute(select(PatientRequest).where(PatientRequest.id == request_id))).scalar_one_or_none()
+    if not req:
+        raise NotFoundException("Patient registration request not found.")
+
+    # Rule 1 & 12: Race condition protection
+    active = (await db.execute(select(Patient).where(Patient.patient_uid == req.patient_uid))).scalar_one_or_none()
+    if active and active.doctor_id != req.doctor_id:
+        raise ConflictException("This patient is already registered with another active doctor.")
+
+    req.status = "accepted"
+    if not active:
+        new_link = Patient(
+            doctor_id=req.doctor_id,
+            patient_uid=req.patient_uid,
+            name=req.patient_name,
+            phone=req.phone,
+            age=req.age,
+            parent_email=req.parent_email
+        )
+        db.add(new_link)
+
+    # Reject other pending requests
+    other_pending = (await db.execute(
+        select(PatientRequest).where(
+            and_(
+                PatientRequest.patient_uid == req.patient_uid,
+                PatientRequest.id != request_id,
+                PatientRequest.status == "pending"
+            )
+        )
+    )).scalars().all()
+    for op_req in other_pending:
+        op_req.status = "rejected"
+
+    await db.commit()
+    return {"success": True, "message": "Request accepted successfully.", "request_id": request_id}
+
+
+@router.post("/requests/{request_id}/reject")
+async def reject_patient_request(
+    request_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Doctor/System rejects a patient registration request.
+    """
+    if settings.SUPABASE_SERVICE_ROLE_KEY:
+        return SupabaseDbService.reject_patient_request(request_id)
+
+    req = (await db.execute(select(PatientRequest).where(PatientRequest.id == request_id))).scalar_one_or_none()
+    if not req:
+        raise NotFoundException("Patient registration request not found.")
+
+    req.status = "rejected"
+    await db.commit()
+    return {"success": True, "message": "Request rejected.", "request_id": request_id}
+
+
 @router.get("/{doctor_id}", response_model=TherapistResponse)
 async def get_therapist_by_id(
     doctor_id: str,
@@ -215,4 +284,5 @@ async def get_therapist_by_id(
     if not doctor:
         raise NotFoundException("Doctor not found")
     return doctor
+
 

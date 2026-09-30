@@ -74,22 +74,46 @@ class SupabaseDbService:
         if doc_res.data[0].get("status") != "approved":
             raise BadRequestException("Cannot request an unapproved doctor")
 
-        # 3. Check if already linked
-        linked = sb.table("patients").select("*").eq("patient_uid", current_uid).eq("doctor_id", doctor_id).execute()
-        if linked.data:
-            raise ConflictException("You are already registered with this doctor.")
+        # 3. Rule 1, 2, 4: Enforce that a patient can have only ONE active doctor.
+        # If already registered with ANY doctor, reject immediately.
+        active_link = sb.table("patients").select("*").eq("patient_uid", current_uid).execute()
+        if active_link.data:
+            cur_doc_id = active_link.data[0].get("doctor_id")
+            cur_doc_name = "your current doctor"
+            try:
+                cur_doc = sb.table("therapists").select("full_name").eq("id", cur_doc_id).execute()
+                if cur_doc.data and cur_doc.data[0].get("full_name"):
+                    cur_doc_name = f"Dr. {cur_doc.data[0].get('full_name')}"
+            except Exception:
+                pass
+            raise ConflictException(
+                f"You are already registered with {cur_doc_name}. You must first unregister from your current doctor before requesting another doctor."
+            )
 
-        # 4. Check if pending request exists
-        pending = (
+        # 4. Rule 5: Prevent duplicate or parallel doctor requests.
+        # A patient can only have ONE pending request at a time across the entire system.
+        existing_pending = (
             sb.table("patient_requests")
             .select("*")
             .eq("patient_uid", current_uid)
-            .eq("doctor_id", doctor_id)
             .eq("status", "pending")
             .execute()
         )
-        if pending.data:
-            raise ConflictException("You already have a pending registration request with this doctor.")
+        if existing_pending.data:
+            pending_doc_id = existing_pending.data[0].get("doctor_id")
+            if pending_doc_id == doctor_id:
+                raise ConflictException("You already have a pending registration request with this doctor.")
+            else:
+                pending_doc_name = "another doctor"
+                try:
+                    pdoc = sb.table("therapists").select("full_name").eq("id", pending_doc_id).execute()
+                    if pdoc.data and pdoc.data[0].get("full_name"):
+                        pending_doc_name = f"Dr. {pdoc.data[0].get('full_name')}"
+                except Exception:
+                    pass
+                raise ConflictException(
+                    f"You already have a pending registration request with {pending_doc_name}. You can only request one doctor at a time. Please wait for a response or unregister/cancel it first."
+                )
 
         # 5. Insert request
         child_name = profile.get("child_name") or profile.get("parent_name") or "Child"
@@ -128,7 +152,7 @@ class SupabaseDbService:
     @staticmethod
     def get_my_doctor_status(current_uid: str) -> Dict[str, Any]:
         sb = get_supabase()
-        # 1. Check patients table
+        # 1. Check patients table for active linked doctor
         patient_link = sb.table("patients").select("*").eq("patient_uid", current_uid).execute()
         if patient_link.data:
             doc_id = patient_link.data[0].get("doctor_id")
@@ -140,7 +164,44 @@ class SupabaseDbService:
                     "request": None
                 }
 
-        # 2. Check pending requests
+        # 2. Check if a doctor has accepted the request (synchronization guarantee)
+        accepted_req = (
+            sb.table("patient_requests")
+            .select("*")
+            .eq("patient_uid", current_uid)
+            .eq("status", "accepted")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if accepted_req.data:
+            req = accepted_req.data[0]
+            doc_id = req.get("doctor_id")
+            # Ensure patients table row exists and profile is synced
+            try:
+                sb.table("patients").insert({
+                    "doctor_id": doc_id,
+                    "patient_uid": current_uid,
+                    "name": req.get("patient_name") or "Child",
+                    "phone": req.get("phone"),
+                    "age": req.get("age"),
+                    "parent_email": req.get("parent_email"),
+                }).execute()
+            except Exception:
+                pass
+            try:
+                sb.table("profiles").update({"doctor_uid": doc_id}).eq("patient_uid", current_uid).execute()
+            except Exception:
+                pass
+            doc = sb.table("therapists").select("*").eq("id", doc_id).execute()
+            if doc.data:
+                return {
+                    "status": "approved",
+                    "doctor": doc.data[0],
+                    "request": None
+                }
+
+        # 3. Check pending requests
         pending = (
             sb.table("patient_requests")
             .select("*")
@@ -162,8 +223,152 @@ class SupabaseDbService:
     @staticmethod
     def unregister_my_doctor(current_uid: str) -> None:
         sb = get_supabase()
+        # 1. Remove all records for this patient from patients table
         sb.table("patients").delete().eq("patient_uid", current_uid).execute()
-        sb.table("patient_requests").delete().eq("patient_uid", current_uid).eq("status", "pending").execute()
+        # 2. Remove / clear all requests for this patient from patient_requests table
+        sb.table("patient_requests").delete().eq("patient_uid", current_uid).execute()
+        # 3. Clear doctor_uid reference from profile
+        try:
+            sb.table("profiles").update({"doctor_uid": None}).eq("patient_uid", current_uid).execute()
+        except Exception:
+            pass
+        # 4. Insert in-app notification confirming unregistration
+        try:
+            sb.table("notifications").insert({
+                "patient_uid": current_uid,
+                "icon": "ℹ️",
+                "message": "You have unregistered from your doctor. You can now choose and register with another doctor.",
+                "is_read": False
+            }).execute()
+        except Exception:
+            pass
+
+    @staticmethod
+    def accept_patient_request(request_id: str) -> Dict[str, Any]:
+        sb = get_supabase()
+        req_res = sb.table("patient_requests").select("*").eq("id", request_id).execute()
+        if not req_res.data:
+            raise NotFoundException("Patient registration request not found.")
+        req = req_res.data[0]
+        patient_uid = req.get("patient_uid")
+        doctor_id = req.get("doctor_id")
+
+        if not patient_uid or not doctor_id:
+            raise BadRequestException("Invalid request data: missing patient_uid or doctor_id.")
+
+        # Rule 1 & 12: Race condition protection — check if patient is already active with another doctor
+        existing_patient = sb.table("patients").select("*").eq("patient_uid", patient_uid).execute()
+        if existing_patient.data:
+            active_doc_id = existing_patient.data[0].get("doctor_id")
+            if active_doc_id != doctor_id:
+                raise ConflictException("This patient is already registered with another active doctor.")
+
+        # Mark request as accepted
+        now_str = datetime.now(timezone.utc).isoformat()
+        sb.table("patient_requests").update({
+            "status": "accepted",
+            "updated_at": now_str
+        }).eq("id", request_id).execute()
+
+        # Link patient in patients table (ensuring single active doctor)
+        if not existing_patient.data:
+            try:
+                sb.table("patients").insert({
+                    "doctor_id": doctor_id,
+                    "patient_uid": patient_uid,
+                    "name": req.get("patient_name") or "Child",
+                    "phone": req.get("phone"),
+                    "age": req.get("age"),
+                    "parent_email": req.get("parent_email"),
+                }).execute()
+            except Exception as e:
+                logger.warning(f"Error inserting into patients table during accept: {e}")
+
+        # Update profile table doctor_uid
+        try:
+            sb.table("profiles").update({"doctor_uid": doctor_id}).eq("patient_uid", patient_uid).execute()
+        except Exception:
+            pass
+
+        # Reject any other pending requests for this patient (Rule 1 & 5)
+        try:
+            sb.table("patient_requests").update({
+                "status": "rejected",
+                "updated_at": now_str
+            }).eq("patient_uid", patient_uid).eq("status", "pending").execute()
+        except Exception:
+            pass
+
+        # Fetch doctor name for notification
+        doc_name = "Your therapist"
+        try:
+            doc_res = sb.table("therapists").select("full_name").eq("id", doctor_id).execute()
+            if doc_res.data and doc_res.data[0].get("full_name"):
+                doc_name = f"Dr. {doc_res.data[0].get('full_name')}"
+        except Exception:
+            pass
+
+        # Insert immediate in-app notification for patient (Rule 7)
+        try:
+            sb.table("notifications").insert({
+                "patient_uid": patient_uid,
+                "icon": "👨‍⚕️",
+                "message": f"{doc_name} has accepted your registration request! You are now connected.",
+                "is_read": False
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Failed to create in-app notification on request acceptance: {e}")
+
+        return {
+            "success": True,
+            "message": f"Registration request accepted. Patient is now linked with {doc_name}.",
+            "request_id": request_id,
+            "doctor_id": doctor_id,
+            "patient_uid": patient_uid,
+            "status": "accepted"
+        }
+
+    @staticmethod
+    def reject_patient_request(request_id: str) -> Dict[str, Any]:
+        sb = get_supabase()
+        req_res = sb.table("patient_requests").select("*").eq("id", request_id).execute()
+        if not req_res.data:
+            raise NotFoundException("Patient registration request not found.")
+        req = req_res.data[0]
+        patient_uid = req.get("patient_uid")
+        doctor_id = req.get("doctor_id")
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        sb.table("patient_requests").update({
+            "status": "rejected",
+            "updated_at": now_str
+        }).eq("id", request_id).execute()
+
+        doc_name = "Your therapist"
+        try:
+            doc_res = sb.table("therapists").select("full_name").eq("id", doctor_id).execute()
+            if doc_res.data and doc_res.data[0].get("full_name"):
+                doc_name = f"Dr. {doc_res.data[0].get('full_name')}"
+        except Exception:
+            pass
+
+        try:
+            if patient_uid:
+                sb.table("notifications").insert({
+                    "patient_uid": patient_uid,
+                    "icon": "❌",
+                    "message": f"Your registration request with {doc_name} was declined.",
+                    "is_read": False
+                }).execute()
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "message": "Registration request rejected.",
+            "request_id": request_id,
+            "status": "rejected"
+        }
 
     @staticmethod
     def _parse_time(val: Any) -> time:

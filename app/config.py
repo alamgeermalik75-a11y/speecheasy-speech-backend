@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./speecheasy.db"
     SUPABASE_URL: Optional[str] = "https://fwrkrpmqmqxlgvyzrizq.supabase.co"
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3cmtycG1xbXF4bGd2eXpyaXpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDQ3MTQxOSwiZXhwIjoyMTA2MDQ3NDE5fQ.qCh5EDtm1EnWIlaBVkStFTF3_Wqqow1R5OjE924Re44"
 
     # SpeechEasy JWT Authentication
     # MUST match JWT_SECRET_KEY of patient_auth_service (the token issuer).

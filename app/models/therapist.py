@@ -66,6 +66,7 @@ class Patient(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (
+        UniqueConstraint("patient_uid", name="uq_patient_single_doctor"),
         UniqueConstraint("doctor_id", "patient_uid", name="uq_doctor_patient_link"),
     )
 
