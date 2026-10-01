@@ -9,7 +9,8 @@ from app.schemas.appointment import (
     CreateAppointmentRequest,
     AvailableSlotsResponse,
     AppointmentResponse,
-    UpdateAppointmentStatusRequest
+    UpdateAppointmentStatusRequest,
+    SessionListResponse
 )
 from app.services.booking_service import BookingService
 from app.config import settings
@@ -37,6 +38,23 @@ async def get_doctor_available_slots(
 
     data = await BookingService.get_available_slots(db, doctor_id, date_query)
     return AvailableSlotsResponse(date=date_query, slots=data["slots"], all_slots=data["all_slots"])
+
+@router.get("/appointments/me", response_model=SessionListResponse)
+@router.get("/appointments", response_model=SessionListResponse)
+async def get_my_appointments(
+    current_uid: str = Depends(get_current_user_uid),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Fetch all appointments and clinical session history for the authenticated patient,
+    enriched with doctor details, patient details, and cancellation quota status.
+    """
+    if settings.SUPABASE_SERVICE_ROLE_KEY:
+        data = SupabaseDbService.get_my_appointments(current_uid)
+        return SessionListResponse.model_validate(data)
+
+    data = await BookingService.get_my_appointments(db, current_uid)
+    return SessionListResponse.model_validate(data)
 
 @router.post("/appointments", response_model=AppointmentResponse, status_code=status.HTTP_201_CREATED)
 async def book_appointment(

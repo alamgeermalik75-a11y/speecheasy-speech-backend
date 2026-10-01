@@ -78,3 +78,48 @@ class UpdateAppointmentStatusRequest(BaseModel):
         if s not in {"confirmed", "cancelled", "completed", "pending"}:
             raise ValueError("status must be confirmed, cancelled, completed, or pending")
         return s
+
+
+class SessionDoctorInfo(BaseModel):
+    id: str
+    full_name: str
+    qualification: str | None = None
+    years_of_experience: int | None = None
+    languages_spoken: str | None = None
+    consultation_fee: float | None = None
+    doctor_code: str | None = None
+    rating: float | None = None
+
+
+class SessionPatientInfo(BaseModel):
+    patient_uid: str
+    child_name: str
+    parent_name: str | None = None
+    age: int | None = None
+    phone: str | None = None
+
+
+class SessionItem(BaseModel):
+    id: str
+    appointment_date: date
+    start_time: str
+    end_time: str
+    status: str
+    created_at: datetime | None = None
+    patient: SessionPatientInfo
+    doctor: SessionDoctorInfo
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_id(cls, v):
+        return str(v)
+
+    model_config = {"from_attributes": True}
+
+
+class SessionListResponse(BaseModel):
+    appointments: list[SessionItem]
+    total_count: int
+    cancellation_count: int
+    is_restricted: bool
+

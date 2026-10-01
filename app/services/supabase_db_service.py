@@ -509,6 +509,21 @@ class SupabaseDbService:
             raise BadRequestException("end_time must be strictly after start_time.")
 
         sb = get_supabase()
+
+        # Enforce 5-cancellation limit server-side
+        cancellation_check = (
+            sb.table("appointments")
+            .select("id")
+            .eq("patient_uid", current_uid)
+            .eq("status", "cancelled")
+            .execute()
+        )
+        cancellation_count = len(cancellation_check.data or [])
+        if cancellation_count >= 5:
+            raise ForbiddenException(
+                "Booking restricted: You have reached the maximum limit of 5 appointment cancellations. Please contact support."
+            )
+
         # 1. Check doctor
         doc_res = sb.table("therapists").select("*").eq("id", doctor_id).execute()
         if not doc_res.data or doc_res.data[0].get("status") != "approved":
@@ -613,6 +628,9 @@ class SupabaseDbService:
         if patient_uid is not None and appt.get("patient_uid") != patient_uid:
             raise ForbiddenException("You do not have access to this appointment.")
 
+        if appt.get("status") == "cancelled" and new_status == "cancelled":
+            raise BadRequestException("Appointment is already cancelled.")
+
         upd = sb.table("appointments").update({
             "status": new_status,
         }).eq("id", appointment_id).execute()
@@ -639,6 +657,73 @@ class SupabaseDbService:
             pass
 
         return upd.data[0]
+
+    @staticmethod
+    def get_my_appointments(current_uid: str) -> Dict[str, Any]:
+        sb = get_supabase()
+        # 1. Fetch appointments for patient
+        appts_res = (
+            sb.table("appointments")
+            .select("*")
+            .eq("patient_uid", current_uid)
+            .order("appointment_date", desc=True)
+            .order("start_time", desc=True)
+            .execute()
+        )
+        appts = appts_res.data or []
+
+        # 2. Count cancellations to derive restriction
+        cancellation_count = sum(1 for a in appts if a.get("status") == "cancelled")
+        is_restricted = cancellation_count >= 5
+
+        # 3. Fetch patient profile
+        prof_res = sb.table("profiles").select("*").eq("patient_uid", current_uid).execute()
+        profile_data = prof_res.data[0] if prof_res.data else {}
+
+        # 4. Fetch therapist info for all referenced doctors
+        doc_ids = list({a["doctor_id"] for a in appts if a.get("doctor_id")})
+        doc_map = {}
+        if doc_ids:
+            docs_res = sb.table("therapists").select("*").in_("id", doc_ids).execute()
+            for d in (docs_res.data or []):
+                doc_map[d["id"]] = d
+
+        # 5. Build enriched appointment list
+        items = []
+        for a in appts:
+            doc = doc_map.get(a.get("doctor_id"), {})
+            items.append({
+                "id": str(a.get("id")),
+                "appointment_date": a.get("appointment_date"),
+                "start_time": str(a.get("start_time")),
+                "end_time": str(a.get("end_time")),
+                "status": a.get("status", "pending"),
+                "created_at": a.get("created_at"),
+                "patient": {
+                    "patient_uid": current_uid,
+                    "child_name": a.get("patient_name") or profile_data.get("child_name") or "Child",
+                    "parent_name": profile_data.get("parent_name"),
+                    "age": profile_data.get("age"),
+                    "phone": profile_data.get("phone"),
+                },
+                "doctor": {
+                    "id": doc.get("id") or a.get("doctor_id"),
+                    "full_name": doc.get("full_name") or "Therapist",
+                    "qualification": doc.get("qualification"),
+                    "years_of_experience": doc.get("years_of_experience"),
+                    "languages_spoken": doc.get("languages_spoken"),
+                    "consultation_fee": doc.get("consultation_fee"),
+                    "doctor_code": doc.get("doctor_code"),
+                    "rating": doc.get("rating"),
+                }
+            })
+
+        return {
+            "appointments": items,
+            "total_count": len(items),
+            "cancellation_count": cancellation_count,
+            "is_restricted": is_restricted
+        }
 
     @staticmethod
     def get_my_rating(current_uid: str, doctor_id: str) -> Optional[int]:

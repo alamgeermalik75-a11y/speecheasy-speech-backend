@@ -1,6 +1,6 @@
 from datetime import date, time, datetime, timedelta
 from typing import List, Dict, Any
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func, desc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.therapist import Therapist, Availability
@@ -8,7 +8,7 @@ from app.models.appointment import Appointment
 from app.models.profile import Profile
 from app.models.notification import Notification
 from app.schemas.appointment import CreateAppointmentRequest
-from app.core.exceptions import NotFoundException, BadRequestException, ConflictException
+from app.core.exceptions import NotFoundException, BadRequestException, ConflictException, ForbiddenException
 
 class BookingService:
     @staticmethod
@@ -117,6 +117,19 @@ class BookingService:
         patient_uid: str,
         data: CreateAppointmentRequest
     ) -> Appointment:
+        # Enforce 5-cancellation limit server-side
+        cancelled_stmt = select(func.count(Appointment.id)).where(
+            and_(
+                Appointment.patient_uid == patient_uid,
+                Appointment.status == "cancelled"
+            )
+        )
+        cancelled_count = (await session.execute(cancelled_stmt)).scalar() or 0
+        if cancelled_count >= 5:
+            raise ForbiddenException(
+                "Booking restricted: You have reached the maximum limit of 5 appointment cancellations. Please contact support."
+            )
+
         # 1. Verify profile exists
         profile_stmt = select(Profile).where(Profile.patient_uid == patient_uid)
         profile = (await session.execute(profile_stmt)).scalar_one_or_none()
@@ -202,3 +215,63 @@ class BookingService:
             raise ConflictException("This appointment slot has already been booked.")
 
         return appointment
+
+    @staticmethod
+    async def get_my_appointments(session: AsyncSession, patient_uid: str) -> Dict[str, Any]:
+        stmt = (
+            select(Appointment)
+            .where(Appointment.patient_uid == patient_uid)
+            .order_by(desc(Appointment.appointment_date), desc(Appointment.start_time))
+        )
+        appts = (await session.execute(stmt)).scalars().all()
+        cancellation_count = sum(1 for a in appts if a.status == "cancelled")
+        is_restricted = cancellation_count >= 5
+
+        profile = (await session.execute(
+            select(Profile).where(Profile.patient_uid == patient_uid)
+        )).scalar_one_or_none()
+
+        doc_ids = list({a.doctor_id for a in appts if a.doctor_id})
+        doc_map = {}
+        if doc_ids:
+            docs = (await session.execute(
+                select(Therapist).where(Therapist.id.in_(doc_ids))
+            )).scalars().all()
+            for d in docs:
+                doc_map[d.id] = d
+
+        items = []
+        for a in appts:
+            doc = doc_map.get(a.doctor_id)
+            items.append({
+                "id": str(a.id),
+                "appointment_date": a.appointment_date,
+                "start_time": a.start_time.strftime("%H:%M:%S") if hasattr(a.start_time, "strftime") else str(a.start_time),
+                "end_time": a.end_time.strftime("%H:%M:%S") if hasattr(a.end_time, "strftime") else str(a.end_time),
+                "status": a.status,
+                "created_at": a.created_at,
+                "patient": {
+                    "patient_uid": patient_uid,
+                    "child_name": a.patient_name or (profile.child_name if profile else "Child"),
+                    "parent_name": profile.parent_name if profile else None,
+                    "age": profile.age if profile else None,
+                    "phone": profile.phone if profile else None,
+                },
+                "doctor": {
+                    "id": doc.id if doc else a.doctor_id,
+                    "full_name": doc.full_name if doc else "Therapist",
+                    "qualification": doc.qualification if doc else None,
+                    "years_of_experience": doc.years_of_experience if doc else None,
+                    "languages_spoken": doc.languages_spoken if doc else None,
+                    "consultation_fee": doc.consultation_fee if doc else None,
+                    "doctor_code": doc.doctor_code if doc else None,
+                    "rating": doc.rating if doc else None,
+                }
+            })
+        return {
+            "appointments": items,
+            "total_count": len(items),
+            "cancellation_count": cancellation_count,
+            "is_restricted": is_restricted
+        }
+
