@@ -15,6 +15,8 @@ class Therapist(Base):
     consultation_fee = Column(Numeric(10, 2), default=0.0, nullable=False)
     doctor_code = Column(String, unique=True, index=True, nullable=False)
     status = Column(String, default="approved", nullable=False) # 'approved', 'pending'
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
 
     __table_args__ = (
         CheckConstraint("years_of_experience >= 0", name="check_years_exp_non_negative"),

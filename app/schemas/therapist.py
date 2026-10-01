@@ -15,6 +15,8 @@ class TherapistResponse(BaseModel):
     consultation_fee: float = 0.0
     doctor_code: str
     status: str = "approved"
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
     @model_validator(mode="after")
     def populate_aliases(self):

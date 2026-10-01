@@ -266,6 +266,8 @@ class BookingService:
                     "consultation_fee": doc.consultation_fee if doc else None,
                     "doctor_code": doc.doctor_code if doc else None,
                     "rating": doc.rating if doc else None,
+                    "phone": getattr(doc, "phone", None) if doc else None,
+                    "email": getattr(doc, "email", None) if doc else None,
                 }
             })
         return {

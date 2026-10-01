@@ -715,6 +715,8 @@ class SupabaseDbService:
                     "consultation_fee": doc.get("consultation_fee"),
                     "doctor_code": doc.get("doctor_code"),
                     "rating": doc.get("rating"),
+                    "phone": doc.get("phone"),
+                    "email": doc.get("email"),
                 }
             })
 

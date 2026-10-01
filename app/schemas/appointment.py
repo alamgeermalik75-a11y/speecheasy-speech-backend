@@ -89,6 +89,8 @@ class SessionDoctorInfo(BaseModel):
     consultation_fee: float | None = None
     doctor_code: str | None = None
     rating: float | None = None
+    email: str | None = None
+    phone: str | None = None
 
 
 class SessionPatientInfo(BaseModel):
