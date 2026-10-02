@@ -973,16 +973,19 @@ class SupabaseDbService:
     @staticmethod
     def record_attempt(current_uid: str, item_id: str, alphabet_name: str, level_key: str, score: int) -> Dict[str, Any]:
         sb = get_supabase()
+        now_iso = datetime.now().isoformat()
         # 1. Insert attempt
         ins_res = sb.table("attempts").insert({
             "patient_uid": current_uid,
             "item_id": item_id,
             "alphabet_name": alphabet_name,
             "level_key": level_key,
-            "score": score
+            "score": score,
+            "attempted_at": now_iso
         }).execute()
         attempt_record = dict(ins_res.data[0])
         if not attempt_record.get("attempted_at"):
+            attempt_record["attempted_at"] = now_iso
             attempt_record["attempted_at"] = attempt_record.get("created_at") or datetime.now().isoformat()
 
         # 2. Score notification if >= 70
@@ -1060,7 +1063,11 @@ class SupabaseDbService:
         if level_key:
             query = query.eq("level_key", level_key)
         res = query.order("attempted_at", desc=True).range(offset, offset + limit - 1).execute()
-        return res.data or []
+        attempts = res.data or []
+        for a in attempts:
+            if not a.get("attempted_at"):
+                a["attempted_at"] = a.get("created_at")
+        return attempts
 
     @staticmethod
     def get_notifications(current_uid: str) -> List[Dict[str, Any]]:
