@@ -1,7 +1,7 @@
 import secrets
 import string
 from datetime import date, datetime, timedelta, time
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.core.supabase import get_supabase
 from app.core.exceptions import NotFoundException, BadRequestException, ConflictException, ForbiddenException
 from app.services.progress_service import URDU_ALPHABET_SEQUENCE, get_next_alphabet
@@ -510,18 +510,17 @@ class SupabaseDbService:
 
         sb = get_supabase()
 
-        # Enforce 5-cancellation limit server-side
-        cancellation_check = (
+        # Enforce 5 continuous cancellations limit server-side
+        existing_appts = (
             sb.table("appointments")
-            .select("id")
+            .select("id, status, created_at, appointment_date, start_time")
             .eq("patient_uid", current_uid)
-            .eq("status", "cancelled")
             .execute()
         )
-        cancellation_count = len(cancellation_check.data or [])
-        if cancellation_count >= 5:
+        _, is_restricted = SupabaseDbService._calculate_continuous_cancellations(existing_appts.data or [])
+        if is_restricted:
             raise ForbiddenException(
-                "Booking restricted: You have reached the maximum limit of 5 appointment cancellations. Please contact support."
+                "Booking restricted: Your profile is locked due to 5 continuous appointment cancellations. Please contact support."
             )
 
         # 1. Check doctor
@@ -659,6 +658,46 @@ class SupabaseDbService:
         return upd.data[0]
 
     @staticmethod
+    def _calculate_continuous_cancellations(appts: List[Dict[str, Any]]) -> Tuple[int, bool]:
+        if not appts:
+            return 0, False
+
+        sorted_appts = sorted(
+            appts,
+            key=lambda a: (
+                str(a.get("created_at") or ""),
+                str(a.get("appointment_date") or ""),
+                str(a.get("start_time") or "")
+            ),
+            reverse=True
+        )
+
+        current_streak = 0
+        max_streak = 0
+        temp_streak = 0
+
+        # Scan chronological order (oldest to newest) to detect any streak of 5
+        for a in reversed(sorted_appts):
+            st = (a.get("status") or "").lower()
+            if st == "cancelled":
+                temp_streak += 1
+                if temp_streak > max_streak:
+                    max_streak = temp_streak
+            elif st in ("completed", "confirmed", "booked"):
+                temp_streak = 0
+
+        # Current continuous streak from latest backwards
+        for a in sorted_appts:
+            st = (a.get("status") or "").lower()
+            if st == "cancelled":
+                current_streak += 1
+            elif st in ("completed", "confirmed", "booked"):
+                break
+
+        is_restricted = (max_streak >= 5) or (current_streak >= 5)
+        return current_streak, is_restricted
+
+    @staticmethod
     def get_my_appointments(current_uid: str) -> Dict[str, Any]:
         sb = get_supabase()
         # 1. Fetch appointments for patient
@@ -672,9 +711,8 @@ class SupabaseDbService:
         )
         appts = appts_res.data or []
 
-        # 2. Count cancellations to derive restriction
-        cancellation_count = sum(1 for a in appts if a.get("status") == "cancelled")
-        is_restricted = cancellation_count >= 5
+        # 2. Count continuous cancellations to derive profile lock
+        cancellation_count, is_restricted = SupabaseDbService._calculate_continuous_cancellations(appts)
 
         # 3. Fetch patient profile
         prof_res = sb.table("profiles").select("*").eq("patient_uid", current_uid).execute()

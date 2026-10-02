@@ -1,5 +1,5 @@
 from datetime import date, time, datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from sqlalchemy import select, and_, func, desc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,46 @@ class BookingService:
         if formatted.startswith("0"):
             return formatted[1:]
         return formatted
+
+    @staticmethod
+    def _calculate_continuous_cancellations(appts: List[Dict[str, Any]]) -> Tuple[int, bool]:
+        if not appts:
+            return 0, False
+
+        sorted_appts = sorted(
+            appts,
+            key=lambda a: (
+                str(a.get("created_at") or ""),
+                str(a.get("appointment_date") or ""),
+                str(a.get("start_time") or "")
+            ),
+            reverse=True
+        )
+
+        current_streak = 0
+        max_streak = 0
+        temp_streak = 0
+
+        # Scan chronological order (oldest to newest) to detect any streak of 5
+        for a in reversed(sorted_appts):
+            st = (a.get("status") or "").lower()
+            if st == "cancelled":
+                temp_streak += 1
+                if temp_streak > max_streak:
+                    max_streak = temp_streak
+            elif st in ("completed", "confirmed", "booked"):
+                temp_streak = 0
+
+        # Current continuous streak from latest backwards
+        for a in sorted_appts:
+            st = (a.get("status") or "").lower()
+            if st == "cancelled":
+                current_streak += 1
+            elif st in ("completed", "confirmed", "booked"):
+                break
+
+        is_restricted = (max_streak >= 5) or (current_streak >= 5)
+        return current_streak, is_restricted
 
     @staticmethod
     async def get_available_slots(session: AsyncSession, doctor_id: str, slot_date: date) -> Dict[str, Any]:
@@ -117,17 +157,23 @@ class BookingService:
         patient_uid: str,
         data: CreateAppointmentRequest
     ) -> Appointment:
-        # Enforce 5-cancellation limit server-side
-        cancelled_stmt = select(func.count(Appointment.id)).where(
-            and_(
-                Appointment.patient_uid == patient_uid,
-                Appointment.status == "cancelled"
-            )
-        )
-        cancelled_count = (await session.execute(cancelled_stmt)).scalar() or 0
-        if cancelled_count >= 5:
+        # Enforce 5 continuous cancellations limit server-side
+        user_appts = (await session.execute(
+            select(Appointment).where(Appointment.patient_uid == patient_uid)
+        )).scalars().all()
+        appts_dicts = [
+            {
+                "status": a.status,
+                "created_at": a.created_at,
+                "appointment_date": a.appointment_date,
+                "start_time": a.start_time
+            }
+            for a in user_appts
+        ]
+        _, is_restricted = BookingService._calculate_continuous_cancellations(appts_dicts)
+        if is_restricted:
             raise ForbiddenException(
-                "Booking restricted: You have reached the maximum limit of 5 appointment cancellations. Please contact support."
+                "Booking restricted: Your profile is locked due to 5 continuous appointment cancellations. Please contact support."
             )
 
         # 1. Verify profile exists
@@ -224,8 +270,16 @@ class BookingService:
             .order_by(desc(Appointment.appointment_date), desc(Appointment.start_time))
         )
         appts = (await session.execute(stmt)).scalars().all()
-        cancellation_count = sum(1 for a in appts if a.status == "cancelled")
-        is_restricted = cancellation_count >= 5
+        appts_dicts = [
+            {
+                "status": a.status,
+                "created_at": a.created_at,
+                "appointment_date": a.appointment_date,
+                "start_time": a.start_time
+            }
+            for a in appts
+        ]
+        cancellation_count, is_restricted = BookingService._calculate_continuous_cancellations(appts_dicts)
 
         profile = (await session.execute(
             select(Profile).where(Profile.patient_uid == patient_uid)
