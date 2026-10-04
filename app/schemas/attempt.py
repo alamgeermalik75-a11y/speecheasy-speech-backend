@@ -60,7 +60,9 @@ class ProgressOverviewResponse(BaseModel):
     alphabet_name: str
     alphabet_progress: float
     categories: Dict[str, CategoryProgressDetail]
-    daily_progress: int
-    weekly_progress: int
-    monthly_progress: int
+    daily_progress: float = 0.0
+    weekly_progress: float = 0.0
+    monthly_progress: float = 0.0
     completed_alphabets: List[str] = []
+    daily_history: List[Dict[str, Any]] = []
+    weekly_history: List[Dict[str, Any]] = []

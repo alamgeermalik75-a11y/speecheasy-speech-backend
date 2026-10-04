@@ -1377,16 +1377,82 @@ class SupabaseDbService:
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
         overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
 
-        # Daily, weekly, monthly calculated from progress_events
+        # Daily, weekly, monthly calculated as actual overall curriculum percentage increases
         now = datetime.now(timezone.utc)
         today_date = now.date()
-        daily_score = 0
-        weekly_score = 0
-        monthly_score = 0
+        max_possible_points = (total_curriculum_items * 100) if total_curriculum_items > 0 else 1.0
+
+        daily_points = 0
+        weekly_points = 0
+        monthly_points = 0
+        events: List[Dict[str, Any]] = []
 
         try:
             pe_res = sb.table("progress_events").select("*").eq("patient_uid", current_uid).execute()
             events = pe_res.data or []
+        except Exception as pe_read_err:
+            print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
+
+        # Map date -> total positive points earned across ALL alphabets
+        date_points_map: Dict[date, int] = {}
+        for ev in events:
+            raw_ts = ev.get("earned_at") or ev.get("created_at")
+            if not raw_ts:
+                continue
+            try:
+                dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                d_key = dt.date()
+                earned = ev.get("progress_earned", 0)
+                date_points_map[d_key] = date_points_map.get(d_key, 0) + earned
+                days_diff = (now - dt).total_seconds() / 86400.0
+                if d_key == today_date:
+                    daily_points += earned
+                if days_diff <= 7.0:
+                    weekly_points += earned
+                if days_diff <= 30.0:
+                    monthly_points += earned
+            except Exception:
+                pass
+
+        # Fallback to attempts table if no progress_events exist yet
+        if not events and all_attempts:
+            for a in all_attempts:
+                raw_ts = a.get("attempted_at") or a.get("created_at")
+                if not raw_ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                    d_key = dt.date()
+                    sc = a.get("score", 0)
+                    date_points_map[d_key] = date_points_map.get(d_key, 0) + sc
+                    days_diff = (now - dt).total_seconds() / 86400.0
+                    if d_key == today_date:
+                        daily_points += sc
+                    if days_diff <= 7.0:
+                        weekly_points += sc
+                    if days_diff <= 30.0:
+                        monthly_points += sc
+                except Exception:
+                    pass
+
+        # 1. Last 7 Days history breakdown (ordered from 6 days ago to today)
+        daily_history: List[Dict[str, Any]] = []
+        for i in range(6, -1, -1):
+            day_dt = today_date - timedelta(days=i)
+            pts = date_points_map.get(day_dt, 0)
+            day_pct = round((pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            daily_history.append({
+                "date": day_dt.isoformat(),
+                "label": f"{day_dt.day}/{day_dt.month}",
+                "progress": day_pct,
+            })
+
+        # 2. Last 4 Weeks history breakdown (ordered from Wk 1 to Wk 4)
+        weekly_history: List[Dict[str, Any]] = []
+        for w in range(3, -1, -1):
+            w_start_days = (w + 1) * 7
+            w_end_days = w * 7
+            w_pts = 0
             for ev in events:
                 raw_ts = ev.get("earned_at") or ev.get("created_at")
                 if not raw_ts:
@@ -1394,45 +1460,31 @@ class SupabaseDbService:
                 try:
                     dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
                     days_diff = (now - dt).total_seconds() / 86400.0
-                    earned = ev.get("progress_earned", 0)
-                    if dt.date() == today_date:
-                        daily_score += earned
-                    if days_diff <= 7.0:
-                        weekly_score += earned
-                    if days_diff <= 30.0:
-                        monthly_score += earned
+                    if w_end_days <= days_diff < w_start_days:
+                        w_pts += ev.get("progress_earned", 0)
                 except Exception:
                     pass
-        except Exception as pe_read_err:
-            print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
+            w_pct = round((w_pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            weekly_history.append({
+                "label": f"Wk {4 - w}",
+                "progress": w_pct,
+            })
 
-        # Fallback to attempts table if no progress_events recorded yet
-        if daily_score == 0 and weekly_score == 0 and monthly_score == 0 and all_attempts:
-            for a in all_attempts:
-                raw_ts = a.get("attempted_at") or a.get("created_at")
-                if not raw_ts:
-                    continue
-                try:
-                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                    days_diff = (now - dt).total_seconds() / 86400.0
-                    sc = a.get("score", 0)
-                    if dt.date() == today_date:
-                        daily_score += sc
-                    if days_diff <= 7.0:
-                        weekly_score += sc
-                    if days_diff <= 30.0:
-                        monthly_score += sc
-                except Exception:
-                    pass
+        # Daily, weekly, monthly percentage increases
+        daily_progress_pct = round((daily_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+        weekly_progress_pct = round((weekly_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+        monthly_progress_pct = round((monthly_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
 
         return {
             "overall_progress": overall_progress,
             "alphabet_name": alpha,
             "alphabet_progress": min(100.0, round(alphabet_total_pct, 2)),
             "categories": categories_res,
-            "daily_progress": daily_score,
-            "weekly_progress": weekly_score,
-            "monthly_progress": monthly_score,
+            "daily_progress": daily_progress_pct,
+            "weekly_progress": weekly_progress_pct,
+            "monthly_progress": monthly_progress_pct,
+            "daily_history": daily_history,
+            "weekly_history": weekly_history,
         }
 
     @staticmethod

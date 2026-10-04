@@ -278,11 +278,14 @@ class ProgressService:
         alpha_progress_data = await ProgressService.get_alphabet_progress_internal(session, patient_uid, alpha)
         overall_progress = await ProgressService.get_overall_progress_internal(session, patient_uid)
 
-        # Calculate daily, weekly, monthly new progress earned
+        # Calculate daily, weekly, monthly new progress earned as overall percentage increases
         now = datetime.now(timezone.utc)
+        today_date = now.date()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = now - timedelta(days=7)
         month_start = now - timedelta(days=30)
+        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
+        max_possible_points = (total_curriculum_items * 100) if total_curriculum_items > 0 else 1.0
 
         # From ProgressEvent table
         daily_stmt = select(func.sum(ProgressEvent.progress_earned)).where(
@@ -300,6 +303,23 @@ class ProgressService:
         )
         monthly_val = (await session.execute(monthly_stmt)).scalar() or 0
 
+        # Daily history for last 7 days
+        events_stmt = select(ProgressEvent).where(
+            and_(ProgressEvent.patient_uid == patient_uid, ProgressEvent.earned_at >= (now - timedelta(days=7)))
+        )
+        recent_events = list((await session.execute(events_stmt)).scalars().all())
+
+        daily_history: List[Dict[str, Any]] = []
+        for i in range(6, -1, -1):
+            day_dt = today_date - timedelta(days=i)
+            day_pts = sum(ev.progress_earned for ev in recent_events if ev.earned_at and ev.earned_at.date() == day_dt)
+            day_pct = round((day_pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            daily_history.append({
+                "date": day_dt.isoformat(),
+                "label": f"{day_dt.day}/{day_dt.month}",
+                "progress": day_pct,
+            })
+
         # Build CategoryProgressDetail map
         cats: Dict[str, CategoryProgressDetail] = {}
         for k, v in alpha_progress_data["categories"].items():
@@ -311,14 +331,20 @@ class ProgressService:
                 passed_items=v["passed_items"]
             )
 
+        daily_progress_pct = round((daily_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+        weekly_progress_pct = round((weekly_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+        monthly_progress_pct = round((monthly_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+
         return ProgressOverviewResponse(
             overall_progress=overall_progress,
             alphabet_name=alpha,
             alphabet_progress=alpha_progress_data["alphabet_progress"],
             categories=cats,
-            daily_progress=int(daily_val),
-            weekly_progress=int(weekly_val),
-            monthly_progress=int(monthly_val)
+            daily_progress=daily_progress_pct,
+            weekly_progress=weekly_progress_pct,
+            monthly_progress=monthly_progress_pct,
+            daily_history=daily_history,
+            weekly_history=[]
         )
 
     @staticmethod
