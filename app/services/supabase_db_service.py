@@ -1214,8 +1214,8 @@ class SupabaseDbService:
                 score_pct = round((score_sum / (item_count * 100)) * 100, 2)
                 is_comp = (passed_count >= item_count)
             else:
-                score_pct = 100.0
-                is_comp = True
+                score_pct = 0.0
+                is_comp = False
 
             is_unlocked = previous_complete
             previous_complete = is_comp
@@ -1356,8 +1356,8 @@ class SupabaseDbService:
                 score_pct = round((score_sum / (item_count * 100)) * 100, 2)
                 is_comp = (passed_count >= item_count)
             else:
-                score_pct = 100.0
-                is_comp = True
+                score_pct = 0.0
+                is_comp = False
 
             is_unlocked = previous_complete
             previous_complete = is_comp

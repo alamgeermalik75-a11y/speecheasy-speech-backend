@@ -159,55 +159,58 @@ class CurriculumManager:
         self.alphabet_counts[alpha_name] = alpha_total
 
     def _load_curriculum(self):
-        base_url = os.environ.get("URDU_API_URL", "https://fast-api-chron.onrender.com").rstrip("/")
         loaded = False
 
-        # Attempt 1: Fetch dynamically from live existing Urdu API
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                r = client.get(f"{base_url}/alphabets")
-                if r.status_code == 200:
-                    api_alphabets = r.json().get("alphabets", [])
-                    if api_alphabets:
-                        def fetch_item(name):
-                            try:
-                                res = client.get(f"{base_url}/alphabet/{name}")
-                                if res.status_code == 200:
-                                    return name, res.json()
-                            except Exception:
-                                pass
-                            return name, None
+        # Attempt 1: Load from bundled repository curriculum data (instant, works on Railway Linux & local)
+        bundled_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
+        if not os.path.exists(bundled_data):
+            bundled_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "Desktop", "fyp", "urdu-learning-api", "data"))
+        if not os.path.exists(bundled_data):
+            bundled_data = r"C:\Users\Ahmad computer sdk\Desktop\fyp\urdu-learning-api\data"
 
-                        with ThreadPoolExecutor(max_workers=8) as executor:
-                            results = list(executor.map(fetch_item, api_alphabets))
+        if os.path.exists(bundled_data):
+            try:
+                for fname in os.listdir(bundled_data):
+                    if fname.endswith(".json"):
+                        alpha_name = fname[:-5]
+                        fpath = os.path.join(bundled_data, fname)
+                        with open(fpath, "r", encoding="utf-8-sig") as fp:
+                            data = json.load(fp)
+                            letter = data.get("alphabet", alpha_name)
+                            self._process_alphabet_data(alpha_name, letter, data)
+                loaded = len(self.curriculum_items) > 0
+                logger.info(f"Loaded bundled curriculum: {len(self.curriculum_items)} alphabets.")
+            except Exception as e:
+                logger.warning(f"Could not load bundled curriculum from {bundled_data}: {e}")
 
-                        for name, data in results:
-                            if data:
-                                letter = data.get("alphabet", name)
-                                self._process_alphabet_data(name, letter, data)
-                        loaded = len(self.curriculum_items) > 0
-        except Exception as e:
-            logger.warning(f"Could not load live curriculum from {base_url}: {e}")
-
-        # Attempt 2: Fallback to existing local Urdu Learning API repository if offline or in tests
+        # Attempt 2: Fetch dynamically from live existing Urdu API if bundled not found
         if not loaded:
-            alt_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "Desktop", "fyp", "urdu-learning-api", "data"))
-            if not os.path.exists(alt_data):
-                alt_data = r"C:\Users\Ahmad computer sdk\Desktop\fyp\urdu-learning-api\data"
+            base_url = os.environ.get("URDU_API_URL", "https://fast-api-chron.onrender.com").rstrip("/")
+            try:
+                with httpx.Client(timeout=5.0) as client:
+                    r = client.get(f"{base_url}/alphabets")
+                    if r.status_code == 200:
+                        api_alphabets = r.json().get("alphabets", [])
+                        if api_alphabets:
+                            def fetch_item(name):
+                                try:
+                                    res = client.get(f"{base_url}/alphabet/{name}")
+                                    if res.status_code == 200:
+                                        return name, res.json()
+                                except Exception:
+                                    pass
+                                return name, None
 
-            if os.path.exists(alt_data):
-                try:
-                    for fname in os.listdir(alt_data):
-                        if fname.endswith(".json"):
-                            alpha_name = fname[:-5]
-                            fpath = os.path.join(alt_data, fname)
-                            with open(fpath, "r", encoding="utf-8-sig") as fp:
-                                data = json.load(fp)
-                                letter = data.get("alphabet", alpha_name)
-                                self._process_alphabet_data(alpha_name, letter, data)
-                    loaded = len(self.curriculum_items) > 0
-                except Exception as e:
-                    logger.warning(f"Could not load curriculum from fallback {alt_data}: {e}")
+                            with ThreadPoolExecutor(max_workers=8) as executor:
+                                results = list(executor.map(fetch_item, api_alphabets))
+
+                            for name, data in results:
+                                if data:
+                                    letter = data.get("alphabet", name)
+                                    self._process_alphabet_data(name, letter, data)
+                            loaded = len(self.curriculum_items) > 0
+            except Exception as e:
+                logger.warning(f"Could not load live curriculum from {base_url}: {e}")
 
         # Populate total curriculum items dynamically
         self.total_curriculum_items = sum(self.alphabet_counts.values())
