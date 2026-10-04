@@ -1317,7 +1317,7 @@ class SupabaseDbService:
         }
 
     @staticmethod
-    def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None) -> Dict[str, Any]:
+    def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None, tz_offset_minutes: int = 0) -> Dict[str, Any]:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
         
@@ -1377,8 +1377,9 @@ class SupabaseDbService:
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
         overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
 
-        # Daily, weekly, monthly calculated as actual overall curriculum percentage increases
-        now = datetime.now(timezone.utc)
+        # Daily, weekly, monthly calculated in user's local timezone
+        user_tz = timezone(timedelta(minutes=tz_offset_minutes))
+        now = datetime.now(user_tz)
         today_date = now.date()
         max_possible_points = (total_curriculum_items * 100) if total_curriculum_items > 0 else 1.0
 
@@ -1393,18 +1394,19 @@ class SupabaseDbService:
         except Exception as pe_read_err:
             print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
 
-        # Map date -> total positive points earned across ALL alphabets
+        # Map local date -> total positive points earned across ALL alphabets
         date_points_map: Dict[date, int] = {}
         for ev in events:
             raw_ts = ev.get("earned_at") or ev.get("created_at")
             if not raw_ts:
                 continue
             try:
-                dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                d_key = dt.date()
+                dt_utc = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                dt_local = dt_utc.astimezone(user_tz)
+                d_key = dt_local.date()
                 earned = ev.get("progress_earned", 0)
                 date_points_map[d_key] = date_points_map.get(d_key, 0) + earned
-                days_diff = (now - dt).total_seconds() / 86400.0
+                days_diff = (now - dt_local).total_seconds() / 86400.0
                 if d_key == today_date:
                     daily_points += earned
                 if days_diff <= 7.0:
@@ -1421,11 +1423,12 @@ class SupabaseDbService:
                 if not raw_ts:
                     continue
                 try:
-                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                    d_key = dt.date()
+                    dt_utc = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                    dt_local = dt_utc.astimezone(user_tz)
+                    d_key = dt_local.date()
                     sc = a.get("score", 0)
                     date_points_map[d_key] = date_points_map.get(d_key, 0) + sc
-                    days_diff = (now - dt).total_seconds() / 86400.0
+                    days_diff = (now - dt_local).total_seconds() / 86400.0
                     if d_key == today_date:
                         daily_points += sc
                     if days_diff <= 7.0:
@@ -1435,7 +1438,7 @@ class SupabaseDbService:
                 except Exception:
                     pass
 
-        # 1. Last 7 Days history breakdown (ordered from 6 days ago to today)
+        # 1. Last 7 Days history breakdown in local time (ordered from 6 days ago to today)
         daily_history: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
             day_dt = today_date - timedelta(days=i)

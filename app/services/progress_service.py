@@ -272,14 +272,16 @@ class ProgressService:
     async def get_progress_overview(
         session: AsyncSession,
         patient_uid: str,
-        alphabet_name: Optional[str] = None
+        alphabet_name: Optional[str] = None,
+        tz_offset_minutes: int = 0
     ) -> ProgressOverviewResponse:
         alpha = alphabet_name.strip() if alphabet_name else "bay"
         alpha_progress_data = await ProgressService.get_alphabet_progress_internal(session, patient_uid, alpha)
         overall_progress = await ProgressService.get_overall_progress_internal(session, patient_uid)
 
         # Calculate daily, weekly, monthly new progress earned as overall percentage increases
-        now = datetime.now(timezone.utc)
+        user_tz = timezone(timedelta(minutes=tz_offset_minutes))
+        now = datetime.now(user_tz)
         today_date = now.date()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = now - timedelta(days=7)

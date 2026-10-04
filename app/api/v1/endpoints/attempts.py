@@ -50,6 +50,7 @@ async def record_practice_attempt(
 @router.get("/progress", response_model=ProgressOverviewResponse)
 async def get_progress_overview(
     alphabet_name: Optional[str] = Query(None),
+    tz_offset_minutes: Optional[int] = Query(0),
     current_uid: str = Depends(get_current_user_uid),
     db: AsyncSession = Depends(get_db)
 ):
@@ -61,10 +62,10 @@ async def get_progress_overview(
     - daily, weekly, and monthly progress
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        data = SupabaseDbService.get_progress_overview(current_uid, alphabet_name)
+        data = SupabaseDbService.get_progress_overview(current_uid, alphabet_name, tz_offset_minutes=tz_offset_minutes or 0)
         return ProgressOverviewResponse.model_validate(data)
 
-    return await ProgressService.get_progress_overview(db, current_uid, alphabet_name)
+    return await ProgressService.get_progress_overview(db, current_uid, alphabet_name, tz_offset_minutes=tz_offset_minutes or 0)
 
 @router.get("/history", response_model=List[AttemptResponse])
 async def get_practice_history(
