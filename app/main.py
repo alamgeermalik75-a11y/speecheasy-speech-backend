@@ -22,6 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("speech_backend")
 
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import ORJSONResponse
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Auto-create tables in development mode if running SQLite / initial setup
@@ -31,6 +34,17 @@ async def lifespan(app: FastAPI):
         logger.info(f"Speech Therapy Backend started in {settings.ENVIRONMENT} mode.")
     except Exception as e:
         logger.error(f"Non-critical startup table sync notice: {e}")
+
+    # Pre-warm Supabase connection pool so initial requests don't pay TLS handshake penalty
+    if settings.SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            from app.core.supabase import get_supabase
+            sb = get_supabase()
+            sb.table("daily_tips").select("id").limit(1).execute()
+            logger.info("Supabase client connection pool pre-warmed successfully.")
+        except Exception as e:
+            logger.warning(f"Supabase pre-warm notice: {e}")
+
     yield
     try:
         await engine.dispose()
@@ -44,10 +58,14 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if settings.is_development else None,
     redoc_url="/redoc" if settings.is_development else None,
+    default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
 
-# 1. CORS Configuration
+# 1. GZip Compression for responses > 1000 bytes
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# 2. CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -56,15 +74,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Structured Request Logging Middleware
+# 3. Structured Request Logging Middleware
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
-    req_id = str(uuid.uuid4())[:8]
-    start_time = time.time()
+    req_id = f"{time.time_ns() & 0xFFFFFFFF:08x}"
+    start_time = time.perf_counter()
     
     # Process request
     response = await call_next(request)
-    duration_ms = round((time.time() - start_time) * 1000, 2)
+    duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
     logger.info(
         f"[{req_id}] {request.method} {request.url.path} - "

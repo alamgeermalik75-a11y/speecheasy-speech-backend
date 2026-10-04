@@ -20,7 +20,8 @@ async def get_active_daily_tips(
     Used by Flutter app for dayOfYear % tips.length rotation.
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        return SupabaseDbService.list_daily_tips()
+        import anyio
+        return await anyio.to_thread.run_sync(SupabaseDbService.list_daily_tips)
 
     stmt = (
         select(DailyTip)

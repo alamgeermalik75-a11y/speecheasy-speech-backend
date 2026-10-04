@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
@@ -39,3 +39,28 @@ class AttemptResultResponse(BaseModel):
     sound_mastered: bool = False
     next_sound: Optional[str] = None
     focus_progress: float = 0.0
+    # Additional detailed progress state
+    category_progress: Optional[float] = None
+    alphabet_progress: Optional[float] = None
+    overall_progress: Optional[float] = None
+    improved: Optional[bool] = None
+    progress_earned: Optional[int] = None
+    is_category_completed: Optional[bool] = None
+    next_category_unlocked: Optional[bool] = None
+
+class CategoryProgressDetail(BaseModel):
+    score_percentage: float
+    is_completed: bool
+    is_unlocked: bool
+    total_items: int
+    passed_items: int
+
+class ProgressOverviewResponse(BaseModel):
+    overall_progress: float
+    alphabet_name: str
+    alphabet_progress: float
+    categories: Dict[str, CategoryProgressDetail]
+    daily_progress: int
+    weekly_progress: int
+    monthly_progress: int
+    completed_alphabets: List[str] = []

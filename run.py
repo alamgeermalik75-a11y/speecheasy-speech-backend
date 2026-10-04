@@ -81,11 +81,34 @@ if __name__ == "__main__":
     elif primary_port == 8000:
         start_socket_bridge(8080, 8000)
 
-    logger.info(f"Starting Speech Backend application on 0.0.0.0:{primary_port}...")
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=primary_port,
-        proxy_headers=True,
-        forwarded_allow_ips="*"
-    )
+    workers_env = os.environ.get("WEB_CONCURRENCY")
+    try:
+        workers = int(workers_env) if workers_env else 2
+    except ValueError:
+        workers = 2
+
+    uvicorn_kwargs = {
+        "app": "app.main:app",
+        "host": "0.0.0.0",
+        "port": primary_port,
+        "proxy_headers": True,
+        "forwarded_allow_ips": "*",
+        "timeout_keep_alive": 75,
+        "workers": workers,
+    }
+
+    try:
+        import uvloop  # type: ignore # noqa
+        uvicorn_kwargs["loop"] = "uvloop"
+    except ImportError:
+        pass
+
+    try:
+        import httptools  # type: ignore # noqa
+        uvicorn_kwargs["http"] = "httptools"
+    except ImportError:
+        pass
+
+    logger.info(f"Starting Speech Backend application on 0.0.0.0:{primary_port} (workers={workers}, keepalive=75s)...")
+    uvicorn.run(**uvicorn_kwargs)
+

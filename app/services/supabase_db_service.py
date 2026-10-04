@@ -1,14 +1,38 @@
 import secrets
 import string
+import time as _sys_time
+from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, time
 from typing import List, Optional, Dict, Any, Tuple
 from app.core.supabase import get_supabase
 from app.core.exceptions import NotFoundException, BadRequestException, ConflictException, ForbiddenException
 from app.services.progress_service import URDU_ALPHABET_SEQUENCE, get_next_alphabet
 
+# In-memory thread-safe micro-caches with TTL to eliminate redundant cloud DB latency
+_cache_lock = Lock()
+_daily_tips_cache: Dict[str, Any] = {"data": None, "expires_at": 0.0}
+_therapists_list_cache: Dict[str, Any] = {}
+_therapist_by_id_cache: Dict[str, Any] = {}
+_therapist_by_code_cache: Dict[str, Any] = {}
+
+def _clear_therapist_cache(doctor_id: Optional[str] = None):
+    with _cache_lock:
+        _therapists_list_cache.clear()
+        if doctor_id:
+            _therapist_by_id_cache.pop(doctor_id, None)
+        else:
+            _therapist_by_id_cache.clear()
+            _therapist_by_code_cache.clear()
+
 class SupabaseDbService:
     @staticmethod
     def list_daily_tips() -> List[Dict[str, Any]]:
+        now = _sys_time.time()
+        with _cache_lock:
+            if _daily_tips_cache["data"] is not None and now < _daily_tips_cache["expires_at"]:
+                return [dict(t) for t in _daily_tips_cache["data"]]
+
         sb = get_supabase()
         res = sb.table("daily_tips").select("*").execute()
         tips = res.data or []
@@ -20,10 +44,23 @@ class SupabaseDbService:
                 t["sort_order"] = idx + 1
             if "is_active" not in t or t["is_active"] is None:
                 t["is_active"] = True
-        return sorted(active_tips, key=lambda x: x.get("sort_order", 0))
+        sorted_tips = sorted(active_tips, key=lambda x: x.get("sort_order", 0))
+
+        with _cache_lock:
+            _daily_tips_cache["data"] = [dict(t) for t in sorted_tips]
+            _daily_tips_cache["expires_at"] = now + 60.0  # 60s TTL
+
+        return sorted_tips
 
     @staticmethod
     def list_therapists(status_filter: str = "approved", limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+        cache_key = f"{status_filter}:{limit}:{offset}"
+        now = _sys_time.time()
+        with _cache_lock:
+            entry = _therapists_list_cache.get(cache_key)
+            if entry and now < entry["expires_at"]:
+                return [dict(t) for t in entry["data"]]
+
         sb = get_supabase()
         res = (
             sb.table("therapists")
@@ -33,12 +70,30 @@ class SupabaseDbService:
             .range(offset, offset + limit - 1)
             .execute()
         )
-        return res.data or []
+        data = res.data or []
+        with _cache_lock:
+            _therapists_list_cache[cache_key] = {
+                "data": [dict(t) for t in data],
+                "expires_at": now + 20.0  # 20s TTL
+            }
+            for d in data:
+                if "id" in d:
+                    _therapist_by_id_cache[d["id"]] = {
+                        "data": dict(d),
+                        "expires_at": now + 60.0
+                    }
+        return data
 
     @staticmethod
     def get_therapist_by_code(code: str) -> Dict[str, Any]:
-        sb = get_supabase()
         cleaned_code = code.strip().upper()
+        now = _sys_time.time()
+        with _cache_lock:
+            entry = _therapist_by_code_cache.get(cleaned_code)
+            if entry and now < entry["expires_at"]:
+                return dict(entry["data"])
+
+        sb = get_supabase()
         res = (
             sb.table("therapists")
             .select("*")
@@ -48,15 +103,38 @@ class SupabaseDbService:
         )
         if not res.data:
             raise NotFoundException("No approved doctor found with that code.")
-        return res.data[0]
+        doc = res.data[0]
+        with _cache_lock:
+            _therapist_by_code_cache[cleaned_code] = {
+                "data": dict(doc),
+                "expires_at": now + 60.0
+            }
+            if "id" in doc:
+                _therapist_by_id_cache[doc["id"]] = {
+                    "data": dict(doc),
+                    "expires_at": now + 60.0
+                }
+        return doc
 
     @staticmethod
     def get_therapist_by_id(doctor_id: str) -> Dict[str, Any]:
+        now = _sys_time.time()
+        with _cache_lock:
+            entry = _therapist_by_id_cache.get(doctor_id)
+            if entry and now < entry["expires_at"]:
+                return dict(entry["data"])
+
         sb = get_supabase()
         res = sb.table("therapists").select("*").eq("id", doctor_id).execute()
         if not res.data:
             raise NotFoundException("Doctor not found")
-        return res.data[0]
+        doc = res.data[0]
+        with _cache_lock:
+            _therapist_by_id_cache[doctor_id] = {
+                "data": dict(doc),
+                "expires_at": now + 60.0
+            }
+        return doc
 
     @staticmethod
     def request_therapist_registration(current_uid: str, doctor_id: str) -> Dict[str, Any]:
@@ -156,13 +234,15 @@ class SupabaseDbService:
         patient_link = sb.table("patients").select("*").eq("patient_uid", current_uid).execute()
         if patient_link.data:
             doc_id = patient_link.data[0].get("doctor_id")
-            doc = sb.table("therapists").select("*").eq("id", doc_id).execute()
-            if doc.data:
+            try:
+                doc_data = SupabaseDbService.get_therapist_by_id(doc_id)
                 return {
                     "status": "approved",
-                    "doctor": doc.data[0],
+                    "doctor": doc_data,
                     "request": None
                 }
+            except Exception:
+                pass
 
         # 2. Check if a doctor has accepted the request (synchronization guarantee)
         accepted_req = (
@@ -193,13 +273,15 @@ class SupabaseDbService:
                 sb.table("profiles").update({"doctor_uid": doc_id}).eq("patient_uid", current_uid).execute()
             except Exception:
                 pass
-            doc = sb.table("therapists").select("*").eq("id", doc_id).execute()
-            if doc.data:
+            try:
+                doc_data = SupabaseDbService.get_therapist_by_id(doc_id)
                 return {
                     "status": "approved",
-                    "doctor": doc.data[0],
+                    "doctor": doc_data,
                     "request": None
                 }
+            except Exception:
+                pass
 
         # 3. Check pending requests
         pending = (
@@ -700,33 +782,59 @@ class SupabaseDbService:
     @staticmethod
     def get_my_appointments(current_uid: str) -> Dict[str, Any]:
         sb = get_supabase()
-        # 1. Fetch appointments for patient
-        appts_res = (
-            sb.table("appointments")
-            .select("*")
-            .eq("patient_uid", current_uid)
-            .order("appointment_date", desc=True)
-            .order("start_time", desc=True)
-            .execute()
-        )
+
+        # 1. Fetch appointments and patient profile concurrently
+        def fetch_appts():
+            return (
+                sb.table("appointments")
+                .select("*")
+                .eq("patient_uid", current_uid)
+                .order("appointment_date", desc=True)
+                .order("start_time", desc=True)
+                .execute()
+            )
+
+        def fetch_profile():
+            return sb.table("profiles").select("*").eq("patient_uid", current_uid).execute()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut_appts = executor.submit(fetch_appts)
+            fut_prof = executor.submit(fetch_profile)
+            appts_res = fut_appts.result()
+            prof_res = fut_prof.result()
+
         appts = appts_res.data or []
+        profile_data = prof_res.data[0] if prof_res.data else {}
 
         # 2. Count continuous cancellations to derive profile lock
         cancellation_count, is_restricted = SupabaseDbService._calculate_continuous_cancellations(appts)
 
-        # 3. Fetch patient profile
-        prof_res = sb.table("profiles").select("*").eq("patient_uid", current_uid).execute()
-        profile_data = prof_res.data[0] if prof_res.data else {}
-
-        # 4. Fetch therapist info for all referenced doctors
+        # 3. Fetch therapist info for all referenced doctors (leverage cache)
         doc_ids = list({a["doctor_id"] for a in appts if a.get("doctor_id")})
         doc_map = {}
-        if doc_ids:
-            docs_res = sb.table("therapists").select("*").in_("id", doc_ids).execute()
-            for d in (docs_res.data or []):
-                doc_map[d["id"]] = d
+        missing_doc_ids = []
+        now = _sys_time.time()
 
-        # 5. Build enriched appointment list
+        with _cache_lock:
+            for did in doc_ids:
+                entry = _therapist_by_id_cache.get(did)
+                if entry and now < entry["expires_at"]:
+                    doc_map[did] = dict(entry["data"])
+                else:
+                    missing_doc_ids.append(did)
+
+        if missing_doc_ids:
+            docs_res = sb.table("therapists").select("*").in_("id", missing_doc_ids).execute()
+            fetched_docs = docs_res.data or []
+            with _cache_lock:
+                for d in fetched_docs:
+                    doc_map[d["id"]] = d
+                    _therapist_by_id_cache[d["id"]] = {
+                        "data": dict(d),
+                        "expires_at": now + 60.0
+                    }
+
+        # 4. Build enriched appointment list
         items = []
         for a in appts:
             doc = doc_map.get(a.get("doctor_id"), {})
@@ -823,6 +931,7 @@ class SupabaseDbService:
             except Exception:
                 pass
 
+        _clear_therapist_cache(doctor_id)
         return {"doctor_id": doctor_id, "rating": stars}
 
     @staticmethod
@@ -972,80 +1081,283 @@ class SupabaseDbService:
 
     @staticmethod
     def record_attempt(current_uid: str, item_id: str, alphabet_name: str, level_key: str, score: int) -> Dict[str, Any]:
+        from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
-        now_iso = datetime.now().isoformat()
-        # 1. Insert attempt
-        ins_res = sb.table("attempts").insert({
-            "patient_uid": current_uid,
-            "item_id": item_id,
-            "alphabet_name": alphabet_name,
-            "level_key": level_key,
-            "score": score,
-            "attempted_at": now_iso
-        }).execute()
-        attempt_record = dict(ins_res.data[0])
-        if not attempt_record.get("attempted_at"):
-            attempt_record["attempted_at"] = now_iso
-            attempt_record["attempted_at"] = attempt_record.get("created_at") or datetime.now().isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        alpha = alphabet_name.strip()
+        lvl = level_key.strip()
+        item = item_id.strip()
 
-        # 2. Score notification if >= 70
-        if score >= 70:
+        # 1. Query existing unique item record
+        existing_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("item_id", item).eq("alphabet_name", alpha).eq("level_key", lvl).execute()
+        existing_list = existing_res.data or []
+
+        improved = False
+        progress_earned = 0
+        attempt_record: Dict[str, Any] = {}
+
+        if not existing_list:
+            # CASE A: UNIQUE ITEM -> INSERT
+            ins_res = sb.table("attempts").insert({
+                "patient_uid": current_uid,
+                "item_id": item,
+                "alphabet_name": alpha,
+                "level_key": lvl,
+                "score": score,
+                "attempted_at": now_iso
+            }).execute()
+            if ins_res.data:
+                attempt_record = dict(ins_res.data[0])
+            else:
+                attempt_record = {
+                    "id": 0,
+                    "patient_uid": current_uid,
+                    "item_id": item,
+                    "alphabet_name": alpha,
+                    "level_key": lvl,
+                    "score": score,
+                    "attempted_at": now_iso
+                }
+            improved = True
+            progress_earned = score
+        else:
+            existing = existing_list[0]
+            old_score = existing.get("score", 0)
+            if score > old_score:
+                # CASE B: SAME ITEM + HIGHER SCORE -> UPDATE
+                progress_earned = score - old_score
+                upd_res = sb.table("attempts").update({
+                    "score": score,
+                    "attempted_at": now_iso
+                }).eq("id", existing["id"]).execute()
+                if upd_res.data:
+                    attempt_record = dict(upd_res.data[0])
+                else:
+                    attempt_record = dict(existing, score=score, attempted_at=now_iso)
+                improved = True
+            else:
+                # CASE C & D: SAME ITEM + EQUAL OR LOWER SCORE -> NO UPDATE
+                attempt_record = dict(existing)
+                improved = False
+                progress_earned = 0
+
+        # Milestone notification ONLY when improved to >= 70
+        milestone_msg = None
+        if improved and score >= 70:
+            milestone_msg = f"Nice work! Score: {score}%"
             try:
                 sb.table("notifications").insert({
                     "patient_uid": current_uid,
                     "icon": "🏆",
-                    "message": f"Nice work! Score: {score}%",
+                    "message": milestone_msg,
                     "is_read": False
                 }).execute()
             except Exception:
                 pass
 
-        # 3. Check focus sound progression
+        # 3. Calculate category, alphabet, and overall progress
+        history_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("alphabet_name", alpha).execute()
+        attempts = history_res.data or []
+
+        best_by_level: Dict[str, Dict[str, int]] = {c: {} for c in CATEGORY_ORDER}
+        for a in attempts:
+            k = a.get("level_key")
+            if k in best_by_level:
+                it = a.get("item_id")
+                best_by_level[k][it] = max(best_by_level[k].get(it, 0), a.get("score", 0))
+
+        alphabet_total_pct = 0.0
+        all_categories_complete = True
+        categories_res: Dict[str, Any] = {}
+        previous_complete = True
+
+        for c in CATEGORY_ORDER:
+            item_scores = best_by_level[c]
+            item_count = curriculum_manager.get_category_item_count(alpha, c)
+            passed_count = sum(1 for s in item_scores.values() if s >= 70)
+
+            if item_count > 0:
+                score_sum = sum(item_scores.values())
+                score_pct = round((score_sum / (item_count * 100)) * 100, 2)
+                is_comp = (passed_count >= item_count)
+            else:
+                score_pct = 100.0
+                is_comp = True
+
+            is_unlocked = previous_complete
+            previous_complete = is_comp
+            if not is_comp:
+                all_categories_complete = False
+
+            alphabet_total_pct += score_pct * 0.20
+            categories_res[c] = {
+                "score_percentage": score_pct,
+                "is_completed": is_comp,
+                "is_unlocked": is_unlocked,
+                "total_items": item_count,
+                "passed_items": passed_count,
+            }
+
+        alphabet_progress = min(100.0, round(alphabet_total_pct, 2))
+        category_progress = categories_res.get(lvl, {}).get("score_percentage", 0.0)
+        is_cat_complete = categories_res.get(lvl, {}).get("is_completed", False)
+
+        # Overall progress
+        all_attempts_res = sb.table("attempts").select("score").eq("patient_uid", current_uid).execute()
+        total_score = sum(r.get("score", 0) for r in (all_attempts_res.data or []))
+        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
+        overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
+
+        # 4. Focus sound progression
         focus_res = sb.table("focus_sound").select("*").eq("patient_uid", current_uid).execute()
-        new_progress = 0.0
         advanced = False
         next_sound = None
+        focus_progress = alphabet_progress / 100.0
 
         if focus_res.data:
             curr_focus = focus_res.data[0]
-            if curr_focus.get("alphabet_name") == alphabet_name:
-                # Calculate overall completion across levels
-                history = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("alphabet_name", alphabet_name).execute()
-                levels = set()
-                for h in history.data or []:
-                    if h.get("score", 0) >= 70:
-                        levels.add(h.get("level_key"))
-
-                # 5 levels total: letter, word, sentence, poem, story
-                num_passed = len(levels)
-                new_progress = min(1.0, round(num_passed / 5.0, 2))
-
-                if new_progress >= 1.0:
-                    next_item = get_next_alphabet(alphabet_name)
+            if curr_focus.get("alphabet_name") == alpha:
+                if all_categories_complete:
+                    next_item = curriculum_manager.get_next_alphabet(alpha)
                     if next_item:
                         advanced = True
-                        next_sound = next_item["letter"]
+                        next_sound = next_item["name"]
                         sb.table("focus_sound").update({
                             "sound": next_item["letter"],
                             "alphabet_name": next_item["name"],
                             "progress": 0.0
                         }).eq("patient_uid", current_uid).execute()
+                        focus_progress = 0.0
 
-                        sb.table("notifications").insert({
-                            "patient_uid": current_uid,
-                            "icon": "🎉",
-                            "message": f"Sound '{curr_focus.get('sound')}' fully mastered! Moving on to '{next_item['letter']}'.",
-                            "is_read": False
-                        }).execute()
+                        try:
+                            sb.table("notifications").insert({
+                                "patient_uid": current_uid,
+                                "icon": "🎉",
+                                "message": f"Sound '{alpha}' fully mastered! Moving on to '{next_item['name']}'.",
+                                "is_read": False
+                            }).execute()
+                        except Exception:
+                            pass
+                    else:
+                        sb.table("focus_sound").update({"progress": 1.0}).eq("patient_uid", current_uid).execute()
+                        focus_progress = 1.0
+                        try:
+                            sb.table("notifications").insert({
+                                "patient_uid": current_uid,
+                                "icon": "🎉",
+                                "message": "Congratulations! All Urdu speech sounds fully mastered!",
+                                "is_read": False
+                            }).execute()
+                        except Exception:
+                            pass
                 else:
-                    sb.table("focus_sound").update({"progress": new_progress}).eq("patient_uid", current_uid).execute()
+                    sb.table("focus_sound").update({"progress": round(focus_progress, 2)}).eq("patient_uid", current_uid).execute()
+
+        # Determine next category unlock
+        lvl_idx = CATEGORY_ORDER.index(lvl) if lvl in CATEGORY_ORDER else -1
+        next_cat_unlocked = False
+        if lvl_idx >= 0 and lvl_idx + 1 < len(CATEGORY_ORDER):
+            next_cat = CATEGORY_ORDER[lvl_idx + 1]
+            next_cat_unlocked = categories_res.get(next_cat, {}).get("is_unlocked", False)
 
         return {
             "attempt": attempt_record,
-            "milestone_notification": f"Nice work! Score: {score}%" if score >= 70 else None,
+            "milestone_notification": milestone_msg,
             "sound_mastered": advanced,
             "next_sound": next_sound,
-            "focus_progress": new_progress
+            "focus_progress": focus_progress,
+            "category_progress": category_progress,
+            "alphabet_progress": alphabet_progress,
+            "overall_progress": overall_progress,
+            "improved": improved,
+            "progress_earned": progress_earned,
+            "is_category_completed": is_cat_complete,
+            "next_category_unlocked": next_cat_unlocked,
+        }
+
+    @staticmethod
+    def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None) -> Dict[str, Any]:
+        from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
+        sb = get_supabase()
+        alpha = alphabet_name.strip() if alphabet_name else "bay"
+
+        history_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("alphabet_name", alpha).execute()
+        attempts = history_res.data or []
+
+        best_by_level: Dict[str, Dict[str, int]] = {c: {} for c in CATEGORY_ORDER}
+        for a in attempts:
+            k = a.get("level_key")
+            if k in best_by_level:
+                it = a.get("item_id")
+                best_by_level[k][it] = max(best_by_level[k].get(it, 0), a.get("score", 0))
+
+        alphabet_total_pct = 0.0
+        categories_res: Dict[str, Any] = {}
+        previous_complete = True
+
+        for c in CATEGORY_ORDER:
+            item_scores = best_by_level[c]
+            item_count = curriculum_manager.get_category_item_count(alpha, c)
+            passed_count = sum(1 for s in item_scores.values() if s >= 70)
+
+            if item_count > 0:
+                score_sum = sum(item_scores.values())
+                score_pct = round((score_sum / (item_count * 100)) * 100, 2)
+                is_comp = (passed_count >= item_count)
+            else:
+                score_pct = 100.0
+                is_comp = True
+
+            is_unlocked = previous_complete
+            previous_complete = is_comp
+            alphabet_total_pct += score_pct * 0.20
+
+            categories_res[c] = {
+                "score_percentage": score_pct,
+                "is_completed": is_comp,
+                "is_unlocked": is_unlocked,
+                "total_items": item_count,
+                "passed_items": passed_count,
+            }
+
+        all_attempts_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).execute()
+        all_attempts = all_attempts_res.data or []
+        total_score = sum(r.get("score", 0) for r in all_attempts)
+        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
+        overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
+
+        # Daily, weekly, monthly
+        now = datetime.now(timezone.utc)
+        today_date = now.date()
+        daily_score = 0
+        weekly_score = 0
+        monthly_score = 0
+
+        for a in all_attempts:
+            raw_ts = a.get("attempted_at") or a.get("created_at")
+            if not raw_ts:
+                continue
+            try:
+                dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                days_diff = (now - dt).total_seconds() / 86400.0
+                sc = a.get("score", 0)
+                if dt.date() == today_date:
+                    daily_score += sc
+                if days_diff <= 7.0:
+                    weekly_score += sc
+                if days_diff <= 30.0:
+                    monthly_score += sc
+            except Exception:
+                pass
+
+        return {
+            "overall_progress": overall_progress,
+            "alphabet_name": alpha,
+            "alphabet_progress": min(100.0, round(alphabet_total_pct, 2)),
+            "categories": categories_res,
+            "daily_progress": daily_score,
+            "weekly_progress": weekly_score,
+            "monthly_progress": monthly_score,
         }
 
     @staticmethod

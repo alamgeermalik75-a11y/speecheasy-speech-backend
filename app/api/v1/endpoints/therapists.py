@@ -30,7 +30,10 @@ async def list_therapists(
     List verified therapists. Defaults to status='approved'.
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        return SupabaseDbService.list_therapists(status_filter, limit, offset)
+        import anyio
+        return await anyio.to_thread.run_sync(
+            SupabaseDbService.list_therapists, status_filter, limit, offset
+        )
 
     stmt = (
         select(Therapist)
@@ -51,7 +54,8 @@ async def get_therapist_by_code(
     Find an approved doctor using their unique clinical doctor_code (e.g. SPK-1234).
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        return SupabaseDbService.get_therapist_by_code(code)
+        import anyio
+        return await anyio.to_thread.run_sync(SupabaseDbService.get_therapist_by_code, code)
 
     cleaned_code = code.strip().upper()
     stmt = select(Therapist).where(
@@ -129,7 +133,8 @@ async def get_my_doctor_status(
     - 'none': no active link or request
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        res = SupabaseDbService.get_my_doctor_status(current_uid)
+        import anyio
+        res = await anyio.to_thread.run_sync(SupabaseDbService.get_my_doctor_status, current_uid)
         return MyDoctorStatusResponse(
             status=res["status"],
             doctor=TherapistResponse.model_validate(res["doctor"]) if res.get("doctor") else None,

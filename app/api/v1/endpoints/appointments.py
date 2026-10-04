@@ -50,7 +50,8 @@ async def get_my_appointments(
     enriched with doctor details, patient details, and cancellation quota status.
     """
     if settings.SUPABASE_SERVICE_ROLE_KEY:
-        data = SupabaseDbService.get_my_appointments(current_uid)
+        import anyio
+        data = await anyio.to_thread.run_sync(SupabaseDbService.get_my_appointments, current_uid)
         return SessionListResponse.model_validate(data)
 
     data = await BookingService.get_my_appointments(db, current_uid)
