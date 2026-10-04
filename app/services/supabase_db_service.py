@@ -1353,9 +1353,11 @@ class SupabaseDbService:
     ) -> float:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
 
+        alpha_norm = curriculum_manager._normalize_name(alphabet_name)
         items_best: Dict[str, Tuple[int, str]] = {}
         for ev in patient_events:
-            if ev.get("alphabet_name") != alphabet_name:
+            ev_alpha = curriculum_manager._normalize_name(ev.get("alphabet_name") or "")
+            if ev_alpha != alpha_norm:
                 continue
             ts = ev.get("earned_at") or ev.get("created_at")
             if not ts:
@@ -1371,9 +1373,13 @@ class SupabaseDbService:
             except Exception:
                 pass
 
-        if not items_best and fallback_attempts:
+        if fallback_attempts:
             for a in fallback_attempts:
-                if a.get("alphabet_name") != alphabet_name:
+                a_alpha = curriculum_manager._normalize_name(a.get("alphabet_name") or "")
+                if a_alpha != alpha_norm:
+                    continue
+                it = a.get("item_id")
+                if it in items_best:
                     continue
                 ts = a.get("attempted_at") or a.get("created_at")
                 if not ts:
@@ -1381,11 +1387,9 @@ class SupabaseDbService:
                 try:
                     dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
                     if dt.date() <= cutoff_date:
-                        it = a.get("item_id")
                         lvl = a.get("level_key") or "words"
                         sc = int(a.get("score") or 0)
-                        if it not in items_best or sc > items_best[it][0]:
-                            items_best[it] = (sc, lvl)
+                        items_best[it] = (sc, lvl)
                 except Exception:
                     pass
 
@@ -1394,7 +1398,7 @@ class SupabaseDbService:
 
         sound_overall = 0.0
         for c in CATEGORY_ORDER:
-            item_count = curriculum_manager.get_category_item_count(alphabet_name, c)
+            item_count = curriculum_manager.get_category_item_count(alpha_norm, c)
             c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
             if item_count > 0:
                 score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
@@ -1475,16 +1479,24 @@ class SupabaseDbService:
         except Exception as pe_read_err:
             print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
 
-        # Collect all distinct alphabets ever practiced by this patient
-        practiced_alphabets: Set[str] = set()
+        # Check ALL 36 curriculum alphabets/sounds individually + any practiced alphabet aliases
+        all_sound_keys: List[str] = []
+        seen_sounds = set()
+        for alpha_item in curriculum_manager.alphabet_sequence:
+            name = alpha_item.get("name")
+            if name and name not in seen_sounds:
+                seen_sounds.add(name)
+                all_sound_keys.append(name)
         for ev in events:
             a_name = ev.get("alphabet_name")
-            if a_name:
-                practiced_alphabets.add(a_name)
+            if a_name and a_name not in seen_sounds:
+                seen_sounds.add(a_name)
+                all_sound_keys.append(a_name)
         for a in all_attempts:
             a_name = a.get("alphabet_name")
-            if a_name:
-                practiced_alphabets.add(a_name)
+            if a_name and a_name not in seen_sounds:
+                seen_sounds.add(a_name)
+                all_sound_keys.append(a_name)
 
         # 1. Last 7 Days history breakdown in local time based on Sound Overall changes
         daily_history: List[Dict[str, Any]] = []
@@ -1492,7 +1504,7 @@ class SupabaseDbService:
             day_dt = today_date - timedelta(days=i)
             prev_dt = day_dt - timedelta(days=1)
             day_progress = 0.0
-            for alpha_key in practiced_alphabets:
+            for alpha_key in all_sound_keys:
                 so_today = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
                     events, all_attempts, alpha_key, day_dt, user_tz
                 )
@@ -1514,7 +1526,7 @@ class SupabaseDbService:
             w_start_dt = today_date - timedelta(days=(w + 1) * 7)
             w_end_dt = today_date - timedelta(days=w * 7)
             week_progress = 0.0
-            for alpha_key in practiced_alphabets:
+            for alpha_key in all_sound_keys:
                 so_end = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
                     events, all_attempts, alpha_key, w_end_dt, user_tz
                 )
@@ -1534,7 +1546,7 @@ class SupabaseDbService:
         # Weekly progress is total positive changes across all sounds in last 7 days
         week_7d_ago = today_date - timedelta(days=7)
         weekly_progress_pct = 0.0
-        for alpha_key in practiced_alphabets:
+        for alpha_key in all_sound_keys:
             so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
                 events, all_attempts, alpha_key, today_date, user_tz
             )
@@ -1547,7 +1559,7 @@ class SupabaseDbService:
         # Monthly progress is total positive changes across all sounds in last 30 days
         month_30d_ago = today_date - timedelta(days=30)
         monthly_progress_pct = 0.0
-        for alpha_key in practiced_alphabets:
+        for alpha_key in all_sound_keys:
             so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
                 events, all_attempts, alpha_key, today_date, user_tz
             )

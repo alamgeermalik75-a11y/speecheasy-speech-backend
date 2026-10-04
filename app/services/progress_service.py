@@ -287,19 +287,38 @@ class ProgressService:
         week_start = now - timedelta(days=7)
         month_start = now - timedelta(days=30)
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        # Collect events for this patient
+        # Collect events and attempts for this patient
         events_stmt = select(ProgressEvent).where(ProgressEvent.patient_uid == patient_uid)
         patient_events = list((await session.execute(events_stmt)).scalars().all())
 
-        # Collect distinct alphabets practiced
-        practiced_alphabets = set(ev.alphabet_name for ev in patient_events if ev.alphabet_name)
-        if alpha not in practiced_alphabets and alpha:
-            practiced_alphabets.add(alpha)
+        attempts_stmt = select(Attempt).where(Attempt.patient_uid == patient_uid)
+        patient_attempts = list((await session.execute(attempts_stmt)).scalars().all())
+
+        # Check ALL 36 curriculum alphabets/sounds individually + any practiced alphabet aliases
+        all_sound_keys: List[str] = []
+        seen_sounds = set()
+        for alpha_item in curriculum_manager.alphabet_sequence:
+            name = alpha_item.get("name")
+            if name and name not in seen_sounds:
+                seen_sounds.add(name)
+                all_sound_keys.append(name)
+        for ev in patient_events:
+            a_name = ev.alphabet_name
+            if a_name and a_name not in seen_sounds:
+                seen_sounds.add(a_name)
+                all_sound_keys.append(a_name)
+        for a in patient_attempts:
+            a_name = a.alphabet_name
+            if a_name and a_name not in seen_sounds:
+                seen_sounds.add(a_name)
+                all_sound_keys.append(a_name)
 
         def compute_so_at(alpha_name: str, cutoff: date) -> float:
+            alpha_norm = curriculum_manager._normalize_name(alpha_name)
             items_best: Dict[str, Tuple[int, str]] = {}
             for ev in patient_events:
-                if ev.alphabet_name != alpha_name:
+                ev_alpha = curriculum_manager._normalize_name(ev.alphabet_name or "")
+                if ev_alpha != alpha_norm:
                     continue
                 if ev.earned_at:
                     dt = ev.earned_at.astimezone(user_tz) if ev.earned_at.tzinfo else ev.earned_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
@@ -309,11 +328,27 @@ class ProgressService:
                         sc = ev.new_score or 0
                         if it not in items_best or sc > items_best[it][0]:
                             items_best[it] = (sc, lvl)
+
+            if patient_attempts:
+                for a in patient_attempts:
+                    a_alpha = curriculum_manager._normalize_name(a.alphabet_name or "")
+                    if a_alpha != alpha_norm:
+                        continue
+                    it = a.item_id
+                    if it in items_best:
+                        continue
+                    if a.attempted_at:
+                        dt = a.attempted_at.astimezone(user_tz) if a.attempted_at.tzinfo else a.attempted_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
+                        if dt.date() <= cutoff:
+                            lvl = a.level_key or "words"
+                            sc = a.score or 0
+                            items_best[it] = (sc, lvl)
+
             if not items_best:
                 return 0.0
             so = 0.0
             for c in CATEGORY_ORDER:
-                item_count = curriculum_manager.get_category_item_count(alpha_name, c)
+                item_count = curriculum_manager.get_category_item_count(alpha_norm, c)
                 c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
                 if item_count > 0:
                     score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
@@ -326,7 +361,7 @@ class ProgressService:
             day_dt = today_date - timedelta(days=i)
             prev_dt = day_dt - timedelta(days=1)
             day_progress = 0.0
-            for alpha_key in practiced_alphabets:
+            for alpha_key in all_sound_keys:
                 so_today = compute_so_at(alpha_key, day_dt)
                 so_prev = compute_so_at(alpha_key, prev_dt)
                 sound_diff = max(round(so_today - so_prev, 2), 0.0)
@@ -344,7 +379,7 @@ class ProgressService:
             w_start_dt = today_date - timedelta(days=(w + 1) * 7)
             w_end_dt = today_date - timedelta(days=w * 7)
             week_progress = 0.0
-            for alpha_key in practiced_alphabets:
+            for alpha_key in all_sound_keys:
                 so_end = compute_so_at(alpha_key, w_end_dt)
                 so_start = compute_so_at(alpha_key, w_start_dt)
                 w_diff = max(round(so_end - so_start, 2), 0.0)
@@ -360,7 +395,7 @@ class ProgressService:
         # Weekly progress is total positive changes across all sounds in last 7 days
         week_7d_ago = today_date - timedelta(days=7)
         weekly_progress_pct = 0.0
-        for alpha_key in practiced_alphabets:
+        for alpha_key in all_sound_keys:
             so_now = compute_so_at(alpha_key, today_date)
             so_7d = compute_so_at(alpha_key, week_7d_ago)
             weekly_progress_pct += max(round(so_now - so_7d, 2), 0.0)
@@ -369,7 +404,7 @@ class ProgressService:
         # Monthly progress is total positive changes across all sounds in last 30 days
         month_30d_ago = today_date - timedelta(days=30)
         monthly_progress_pct = 0.0
-        for alpha_key in practiced_alphabets:
+        for alpha_key in all_sound_keys:
             so_now = compute_so_at(alpha_key, today_date)
             so_30d = compute_so_at(alpha_key, month_30d_ago)
             monthly_progress_pct += max(round(so_now - so_30d, 2), 0.0)

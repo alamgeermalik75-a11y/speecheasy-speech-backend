@@ -62,6 +62,8 @@ ALPHABET_ALIASES = {
     "choti_hay": "hay",
     "daal_hard": "dal",
     "zay": "z",
+    "zey": "z",
+    "ze": "z",
     "zuad": "zaad",
     "choti_yay": "ye",
     "bari_yay": "ye",
