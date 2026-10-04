@@ -287,40 +287,93 @@ class ProgressService:
         week_start = now - timedelta(days=7)
         month_start = now - timedelta(days=30)
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        max_possible_points = (total_curriculum_items * 100) if total_curriculum_items > 0 else 1.0
+        # Collect events for this patient
+        events_stmt = select(ProgressEvent).where(ProgressEvent.patient_uid == patient_uid)
+        patient_events = list((await session.execute(events_stmt)).scalars().all())
 
-        # From ProgressEvent table
-        daily_stmt = select(func.sum(ProgressEvent.progress_earned)).where(
-            and_(ProgressEvent.patient_uid == patient_uid, ProgressEvent.earned_at >= today_start)
-        )
-        daily_val = (await session.execute(daily_stmt)).scalar() or 0
+        # Collect distinct alphabets practiced
+        practiced_alphabets = set(ev.alphabet_name for ev in patient_events if ev.alphabet_name)
+        if alpha not in practiced_alphabets and alpha:
+            practiced_alphabets.add(alpha)
 
-        weekly_stmt = select(func.sum(ProgressEvent.progress_earned)).where(
-            and_(ProgressEvent.patient_uid == patient_uid, ProgressEvent.earned_at >= week_start)
-        )
-        weekly_val = (await session.execute(weekly_stmt)).scalar() or 0
+        def compute_so_at(alpha_name: str, cutoff: date) -> float:
+            items_best: Dict[str, Tuple[int, str]] = {}
+            for ev in patient_events:
+                if ev.alphabet_name != alpha_name:
+                    continue
+                if ev.earned_at:
+                    dt = ev.earned_at.astimezone(user_tz) if ev.earned_at.tzinfo else ev.earned_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
+                    if dt.date() <= cutoff:
+                        it = ev.item_id
+                        lvl = ev.level_key or "words"
+                        sc = ev.new_score or 0
+                        if it not in items_best or sc > items_best[it][0]:
+                            items_best[it] = (sc, lvl)
+            if not items_best:
+                return 0.0
+            so = 0.0
+            for c in CATEGORY_ORDER:
+                item_count = curriculum_manager.get_category_item_count(alpha_name, c)
+                c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
+                if item_count > 0:
+                    score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
+                    so += score_pct * 0.20
+            return round(so, 2)
 
-        monthly_stmt = select(func.sum(ProgressEvent.progress_earned)).where(
-            and_(ProgressEvent.patient_uid == patient_uid, ProgressEvent.earned_at >= month_start)
-        )
-        monthly_val = (await session.execute(monthly_stmt)).scalar() or 0
-
-        # Daily history for last 7 days
-        events_stmt = select(ProgressEvent).where(
-            and_(ProgressEvent.patient_uid == patient_uid, ProgressEvent.earned_at >= (now - timedelta(days=7)))
-        )
-        recent_events = list((await session.execute(events_stmt)).scalars().all())
-
+        # 1. Last 7 Days history breakdown in local time based on Sound Overall changes
         daily_history: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
             day_dt = today_date - timedelta(days=i)
-            day_pts = sum(ev.progress_earned for ev in recent_events if ev.earned_at and ev.earned_at.date() == day_dt)
-            day_pct = round((day_pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            prev_dt = day_dt - timedelta(days=1)
+            day_progress = 0.0
+            for alpha_key in practiced_alphabets:
+                so_today = compute_so_at(alpha_key, day_dt)
+                so_prev = compute_so_at(alpha_key, prev_dt)
+                sound_diff = max(round(so_today - so_prev, 2), 0.0)
+                day_progress += sound_diff
+
             daily_history.append({
                 "date": day_dt.isoformat(),
                 "label": f"{day_dt.day}/{day_dt.month}",
-                "progress": day_pct,
+                "progress": round(day_progress, 2),
             })
+
+        # 2. Last 4 Weeks history breakdown (ordered from Wk 1 to Wk 4)
+        weekly_history: List[Dict[str, Any]] = []
+        for w in range(3, -1, -1):
+            w_start_dt = today_date - timedelta(days=(w + 1) * 7)
+            w_end_dt = today_date - timedelta(days=w * 7)
+            week_progress = 0.0
+            for alpha_key in practiced_alphabets:
+                so_end = compute_so_at(alpha_key, w_end_dt)
+                so_start = compute_so_at(alpha_key, w_start_dt)
+                w_diff = max(round(so_end - so_start, 2), 0.0)
+                week_progress += w_diff
+            weekly_history.append({
+                "label": f"Wk {4 - w}",
+                "progress": round(week_progress, 2),
+            })
+
+        # Daily progress is today's total Sound Overall positive changes
+        daily_progress_pct = daily_history[-1]["progress"] if daily_history else 0.0
+
+        # Weekly progress is total positive changes across all sounds in last 7 days
+        week_7d_ago = today_date - timedelta(days=7)
+        weekly_progress_pct = 0.0
+        for alpha_key in practiced_alphabets:
+            so_now = compute_so_at(alpha_key, today_date)
+            so_7d = compute_so_at(alpha_key, week_7d_ago)
+            weekly_progress_pct += max(round(so_now - so_7d, 2), 0.0)
+        weekly_progress_pct = round(weekly_progress_pct, 2)
+
+        # Monthly progress is total positive changes across all sounds in last 30 days
+        month_30d_ago = today_date - timedelta(days=30)
+        monthly_progress_pct = 0.0
+        for alpha_key in practiced_alphabets:
+            so_now = compute_so_at(alpha_key, today_date)
+            so_30d = compute_so_at(alpha_key, month_30d_ago)
+            monthly_progress_pct += max(round(so_now - so_30d, 2), 0.0)
+        monthly_progress_pct = round(monthly_progress_pct, 2)
 
         # Build CategoryProgressDetail map
         cats: Dict[str, CategoryProgressDetail] = {}
@@ -333,10 +386,6 @@ class ProgressService:
                 passed_items=v["passed_items"]
             )
 
-        daily_progress_pct = round((daily_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
-        weekly_progress_pct = round((weekly_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
-        monthly_progress_pct = round((monthly_val / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
-
         return ProgressOverviewResponse(
             overall_progress=overall_progress,
             alphabet_name=alpha,
@@ -346,7 +395,7 @@ class ProgressService:
             weekly_progress=weekly_progress_pct,
             monthly_progress=monthly_progress_pct,
             daily_history=daily_history,
-            weekly_history=[]
+            weekly_history=weekly_history
         )
 
     @staticmethod

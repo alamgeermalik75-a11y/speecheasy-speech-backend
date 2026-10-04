@@ -1317,6 +1317,65 @@ class SupabaseDbService:
         }
 
     @staticmethod
+    def _compute_sound_overall_for_patient_at_cutoff(
+        patient_events: List[Dict[str, Any]],
+        fallback_attempts: List[Dict[str, Any]],
+        alphabet_name: str,
+        cutoff_date: date,
+        user_tz: timezone
+    ) -> float:
+        from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
+
+        items_best: Dict[str, Tuple[int, str]] = {}
+        for ev in patient_events:
+            if ev.get("alphabet_name") != alphabet_name:
+                continue
+            ts = ev.get("earned_at") or ev.get("created_at")
+            if not ts:
+                continue
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
+                if dt.date() <= cutoff_date:
+                    it = ev.get("item_id")
+                    lvl = ev.get("level_key") or "words"
+                    sc = int(ev.get("new_score") or 0)
+                    if it not in items_best or sc > items_best[it][0]:
+                        items_best[it] = (sc, lvl)
+            except Exception:
+                pass
+
+        if not items_best and fallback_attempts:
+            for a in fallback_attempts:
+                if a.get("alphabet_name") != alphabet_name:
+                    continue
+                ts = a.get("attempted_at") or a.get("created_at")
+                if not ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
+                    if dt.date() <= cutoff_date:
+                        it = a.get("item_id")
+                        lvl = a.get("level_key") or "words"
+                        sc = int(a.get("score") or 0)
+                        if it not in items_best or sc > items_best[it][0]:
+                            items_best[it] = (sc, lvl)
+                except Exception:
+                    pass
+
+        if not items_best:
+            return 0.0
+
+        sound_overall = 0.0
+        for c in CATEGORY_ORDER:
+            item_count = curriculum_manager.get_category_item_count(alphabet_name, c)
+            c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
+            if item_count > 0:
+                score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
+                sound_overall += score_pct * 0.20
+
+        return round(sound_overall, 2)
+
+    @staticmethod
     def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None, tz_offset_minutes: int = 0) -> Dict[str, Any]:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
@@ -1377,106 +1436,99 @@ class SupabaseDbService:
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
         overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
 
-        # Daily, weekly, monthly calculated in user's local timezone
+        # Daily, weekly, monthly calculated from DAY-TO-DAY CHANGE of each alphabet's Sound Overall %
         user_tz = timezone(timedelta(minutes=tz_offset_minutes))
         now = datetime.now(user_tz)
         today_date = now.date()
-        max_possible_points = (total_curriculum_items * 100) if total_curriculum_items > 0 else 1.0
 
-        daily_points = 0
-        weekly_points = 0
-        monthly_points = 0
         events: List[Dict[str, Any]] = []
-
         try:
             pe_res = sb.table("progress_events").select("*").eq("patient_uid", current_uid).execute()
             events = pe_res.data or []
         except Exception as pe_read_err:
             print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
 
-        # Map local date -> total positive points earned across ALL alphabets
-        date_points_map: Dict[date, int] = {}
+        # Collect all distinct alphabets ever practiced by this patient
+        practiced_alphabets: Set[str] = set()
         for ev in events:
-            raw_ts = ev.get("earned_at") or ev.get("created_at")
-            if not raw_ts:
-                continue
-            try:
-                dt_utc = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                dt_local = dt_utc.astimezone(user_tz)
-                d_key = dt_local.date()
-                earned = ev.get("progress_earned", 0)
-                date_points_map[d_key] = date_points_map.get(d_key, 0) + earned
-                days_diff = (now - dt_local).total_seconds() / 86400.0
-                if d_key == today_date:
-                    daily_points += earned
-                if days_diff <= 7.0:
-                    weekly_points += earned
-                if days_diff <= 30.0:
-                    monthly_points += earned
-            except Exception:
-                pass
+            a_name = ev.get("alphabet_name")
+            if a_name:
+                practiced_alphabets.add(a_name)
+        for a in all_attempts:
+            a_name = a.get("alphabet_name")
+            if a_name:
+                practiced_alphabets.add(a_name)
 
-        # Fallback to attempts table if no progress_events exist yet
-        if not events and all_attempts:
-            for a in all_attempts:
-                raw_ts = a.get("attempted_at") or a.get("created_at")
-                if not raw_ts:
-                    continue
-                try:
-                    dt_utc = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                    dt_local = dt_utc.astimezone(user_tz)
-                    d_key = dt_local.date()
-                    sc = a.get("score", 0)
-                    date_points_map[d_key] = date_points_map.get(d_key, 0) + sc
-                    days_diff = (now - dt_local).total_seconds() / 86400.0
-                    if d_key == today_date:
-                        daily_points += sc
-                    if days_diff <= 7.0:
-                        weekly_points += sc
-                    if days_diff <= 30.0:
-                        monthly_points += sc
-                except Exception:
-                    pass
-
-        # 1. Last 7 Days history breakdown in local time (ordered from 6 days ago to today)
+        # 1. Last 7 Days history breakdown in local time based on Sound Overall changes
         daily_history: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
             day_dt = today_date - timedelta(days=i)
-            pts = date_points_map.get(day_dt, 0)
-            day_pct = round((pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            prev_dt = day_dt - timedelta(days=1)
+            day_progress = 0.0
+            for alpha_key in practiced_alphabets:
+                so_today = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                    events, all_attempts, alpha_key, day_dt, user_tz
+                )
+                so_prev = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                    events, all_attempts, alpha_key, prev_dt, user_tz
+                )
+                sound_diff = max(round(so_today - so_prev, 2), 0.0)
+                day_progress += sound_diff
+
             daily_history.append({
                 "date": day_dt.isoformat(),
                 "label": f"{day_dt.day}/{day_dt.month}",
-                "progress": day_pct,
+                "progress": round(day_progress, 2),
             })
 
         # 2. Last 4 Weeks history breakdown (ordered from Wk 1 to Wk 4)
         weekly_history: List[Dict[str, Any]] = []
         for w in range(3, -1, -1):
-            w_start_days = (w + 1) * 7
-            w_end_days = w * 7
-            w_pts = 0
-            for ev in events:
-                raw_ts = ev.get("earned_at") or ev.get("created_at")
-                if not raw_ts:
-                    continue
-                try:
-                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                    days_diff = (now - dt).total_seconds() / 86400.0
-                    if w_end_days <= days_diff < w_start_days:
-                        w_pts += ev.get("progress_earned", 0)
-                except Exception:
-                    pass
-            w_pct = round((w_pts / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+            w_start_dt = today_date - timedelta(days=(w + 1) * 7)
+            w_end_dt = today_date - timedelta(days=w * 7)
+            week_progress = 0.0
+            for alpha_key in practiced_alphabets:
+                so_end = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                    events, all_attempts, alpha_key, w_end_dt, user_tz
+                )
+                so_start = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                    events, all_attempts, alpha_key, w_start_dt, user_tz
+                )
+                w_diff = max(round(so_end - so_start, 2), 0.0)
+                week_progress += w_diff
             weekly_history.append({
                 "label": f"Wk {4 - w}",
-                "progress": w_pct,
+                "progress": round(week_progress, 2),
             })
 
-        # Daily, weekly, monthly percentage increases
-        daily_progress_pct = round((daily_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
-        weekly_progress_pct = round((weekly_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
-        monthly_progress_pct = round((monthly_points / max_possible_points) * 100, 2) if total_curriculum_items > 0 else 0.0
+        # Daily progress is today's total Sound Overall positive changes
+        daily_progress_pct = daily_history[-1]["progress"] if daily_history else 0.0
+
+        # Weekly progress is total positive changes across all sounds in last 7 days
+        week_7d_ago = today_date - timedelta(days=7)
+        weekly_progress_pct = 0.0
+        for alpha_key in practiced_alphabets:
+            so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                events, all_attempts, alpha_key, today_date, user_tz
+            )
+            so_7d = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                events, all_attempts, alpha_key, week_7d_ago, user_tz
+            )
+            weekly_progress_pct += max(round(so_now - so_7d, 2), 0.0)
+        weekly_progress_pct = round(weekly_progress_pct, 2)
+
+        # Monthly progress is total positive changes across all sounds in last 30 days
+        month_30d_ago = today_date - timedelta(days=30)
+        monthly_progress_pct = 0.0
+        for alpha_key in practiced_alphabets:
+            so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                events, all_attempts, alpha_key, today_date, user_tz
+            )
+            so_30d = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
+                events, all_attempts, alpha_key, month_30d_ago, user_tz
+            )
+            monthly_progress_pct += max(round(so_now - so_30d, 2), 0.0)
+        monthly_progress_pct = round(monthly_progress_pct, 2)
 
         return {
             "overall_progress": overall_progress,
