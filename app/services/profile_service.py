@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.models.profile import Profile, FocusSound
@@ -87,12 +87,25 @@ class ProfileService:
 
     @staticmethod
     async def delete_profile(session: AsyncSession, patient_uid: str) -> bool:
+        from app.models.attempt import Attempt, ProgressEvent
+        from app.models.notification import Notification
+        from app.models.appointment import Appointment
+        from app.models.rating import Rating
+
+        try:
+            await session.execute(delete(ProgressEvent).where(ProgressEvent.patient_uid == patient_uid))
+            await session.execute(delete(Attempt).where(Attempt.patient_uid == patient_uid))
+            await session.execute(delete(FocusSound).where(FocusSound.patient_uid == patient_uid))
+            await session.execute(delete(Notification).where(Notification.patient_uid == patient_uid))
+            await session.execute(delete(Appointment).where(Appointment.patient_uid == patient_uid))
+            await session.execute(delete(Rating).where(Rating.patient_uid == patient_uid))
+        except Exception:
+            pass
+
         stmt = select(Profile).where(Profile.patient_uid == patient_uid)
         result = await session.execute(stmt)
         profile = result.scalar_one_or_none()
-        if not profile:
-            raise NotFoundException("Profile not found")
-
-        await session.delete(profile)
+        if profile:
+            await session.delete(profile)
         await session.commit()
         return True

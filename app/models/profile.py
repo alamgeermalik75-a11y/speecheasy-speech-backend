@@ -16,6 +16,7 @@ class Profile(Base):
     # Cascade relationships on delete with eager selectin loading for async
     focus_sound = relationship("FocusSound", back_populates="profile", uselist=False, lazy="selectin", cascade="all, delete-orphan")
     attempts = relationship("Attempt", back_populates="profile", cascade="all, delete-orphan")
+    progress_events = relationship("ProgressEvent", back_populates="profile", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="profile", cascade="all, delete-orphan")
     ratings = relationship("Rating", back_populates="profile", cascade="all, delete-orphan")
     patient_relationships = relationship("Patient", back_populates="profile", cascade="all, delete-orphan")

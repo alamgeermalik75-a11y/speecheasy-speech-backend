@@ -48,3 +48,5 @@ class ProgressEvent(Base):
     __table_args__ = (
         Index("idx_progress_events_patient_earned_at", "patient_uid", "earned_at"),
     )
+
+    profile = relationship("Profile", back_populates="progress_events")

@@ -1072,12 +1072,39 @@ class SupabaseDbService:
     @staticmethod
     def delete_profile(current_uid: str) -> None:
         sb = get_supabase()
-        sb.table("attempts").delete().eq("patient_uid", current_uid).execute()
-        sb.table("notifications").delete().eq("patient_uid", current_uid).execute()
-        sb.table("focus_sound").delete().eq("patient_uid", current_uid).execute()
-        sb.table("patient_requests").delete().eq("patient_uid", current_uid).execute()
-        sb.table("patients").delete().eq("patient_uid", current_uid).execute()
-        sb.table("profiles").delete().eq("patient_uid", current_uid).execute()
+        tables_to_delete_by_patient = [
+            "attempts",
+            "progress_events",
+            "focus_sound",
+            "notifications",
+            "patient_requests",
+            "patients",
+            "appointments",
+            "ratings",
+            "profiles",
+        ]
+        for tbl in tables_to_delete_by_patient:
+            try:
+                sb.table(tbl).delete().eq("patient_uid", current_uid).execute()
+            except Exception:
+                pass
+
+        for tbl in ["auth_tokens", "refresh_sessions"]:
+            try:
+                sb.table(tbl).delete().eq("user_id", current_uid).execute()
+            except Exception:
+                pass
+
+        try:
+            sb.table("users").delete().eq("id", current_uid).execute()
+        except Exception:
+            pass
+
+        try:
+            sb.auth.admin.delete_user(current_uid)
+        except Exception:
+            pass
+
 
     @staticmethod
     def record_attempt(current_uid: str, item_id: str, alphabet_name: str, level_key: str, score: int) -> Dict[str, Any]:
