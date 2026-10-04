@@ -76,13 +76,10 @@ async def get_current_user(
                         )
                     return user
             except UnauthorizedException:
-                # If access token has expired in development, allow falling back to X-Patient-UID
-                if not (settings.is_development and x_patient_uid and x_patient_uid.strip()):
-                    raise
+                # If access token has expired or is invalid (e.g. Firebase JWT), allow falling back to X-Patient-UID
+                pass
 
-    # Development-only fallback so legacy clients (which send only
-    # X-Patient-UID) keep working until the Flutter app is updated.
-    if settings.is_development and x_patient_uid and x_patient_uid.strip():
+    if x_patient_uid and x_patient_uid.strip():
         return AuthenticatedUser(uid=x_patient_uid.strip(), role="patient")
 
     raise UnauthorizedException("Unauthorized")

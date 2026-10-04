@@ -3,7 +3,7 @@ import string
 import time as _sys_time
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta, time
+from datetime import date, datetime, timedelta, time, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from app.core.supabase import get_supabase
 from app.core.exceptions import NotFoundException, BadRequestException, ConflictException, ForbiddenException
@@ -1120,6 +1120,22 @@ class SupabaseDbService:
                 }
             improved = True
             progress_earned = score
+
+            # Insert into progress_events for new item improvement
+            try:
+                sb.table("progress_events").insert({
+                    "patient_uid": current_uid,
+                    "item_id": item,
+                    "alphabet_name": alpha,
+                    "level_key": lvl,
+                    "previous_score": 0,
+                    "new_score": score,
+                    "progress_earned": progress_earned,
+                    "earned_at": now_iso
+                }).execute()
+                print(f"[PROGRESS] progress_events INSERT (new item): score={score}, earned={progress_earned}")
+            except Exception as pe_err:
+                print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
         else:
             existing = existing_list[0]
             old_score = existing.get("score", 0)
@@ -1135,11 +1151,28 @@ class SupabaseDbService:
                 else:
                     attempt_record = dict(existing, score=score, attempted_at=now_iso)
                 improved = True
+
+                # Insert into progress_events for higher score improvement
+                try:
+                    sb.table("progress_events").insert({
+                        "patient_uid": current_uid,
+                        "item_id": item,
+                        "alphabet_name": alpha,
+                        "level_key": lvl,
+                        "previous_score": old_score,
+                        "new_score": score,
+                        "progress_earned": progress_earned,
+                        "earned_at": now_iso
+                    }).execute()
+                    print(f"[PROGRESS] progress_events INSERT (higher score): old={old_score}, new={score}, earned={progress_earned}")
+                except Exception as pe_err:
+                    print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
             else:
                 # CASE C & D: SAME ITEM + EQUAL OR LOWER SCORE -> NO UPDATE
                 attempt_record = dict(existing)
                 improved = False
                 progress_earned = 0
+                print(f"[PROGRESS] NO progress_events (equal/lower score): current_best={old_score}, submitted={score}")
 
         # Milestone notification ONLY when improved to >= 70
         milestone_msg = None
@@ -1207,6 +1240,14 @@ class SupabaseDbService:
         total_score = sum(r.get("score", 0) for r in (all_attempts_res.data or []))
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
         overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
+
+        # Safe diagnostic logging
+        print(f"[PROGRESS] attempt received: patient_uid={current_uid}, item={item}, alpha={alpha}, level={lvl}, score={score}")
+        print(f"[PROGRESS] existing best = {0 if not existing_list else existing_list[0].get('score', 0)}")
+        print(f"[PROGRESS] submitted score = {score}")
+        print(f"[PROGRESS] improvement = {progress_earned}")
+        print(f"[PROGRESS] attempts DB result = {attempt_record}")
+        print(f"[PROGRESS] calculated category progress = {category_progress}")
 
         # 4. Focus sound progression
         focus_res = sb.table("focus_sound").select("*").eq("patient_uid", current_uid).execute()
@@ -1279,7 +1320,17 @@ class SupabaseDbService:
     def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None) -> Dict[str, Any]:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
-        alpha = alphabet_name.strip() if alphabet_name else "bay"
+        
+        alpha = alphabet_name.strip() if alphabet_name else None
+        if not alpha:
+            try:
+                fs_res = sb.table("focus_sound").select("alphabet_name").eq("patient_uid", current_uid).limit(1).execute()
+                if fs_res.data and fs_res.data[0].get("alphabet_name"):
+                    alpha = fs_res.data[0].get("alphabet_name")
+            except Exception:
+                pass
+        if not alpha:
+            alpha = "bay"
 
         history_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("alphabet_name", alpha).execute()
         attempts = history_res.data or []
@@ -1326,29 +1377,53 @@ class SupabaseDbService:
         total_curriculum_items = curriculum_manager.get_total_curriculum_items()
         overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
 
-        # Daily, weekly, monthly
+        # Daily, weekly, monthly calculated from progress_events
         now = datetime.now(timezone.utc)
         today_date = now.date()
         daily_score = 0
         weekly_score = 0
         monthly_score = 0
 
-        for a in all_attempts:
-            raw_ts = a.get("attempted_at") or a.get("created_at")
-            if not raw_ts:
-                continue
-            try:
-                dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                days_diff = (now - dt).total_seconds() / 86400.0
-                sc = a.get("score", 0)
-                if dt.date() == today_date:
-                    daily_score += sc
-                if days_diff <= 7.0:
-                    weekly_score += sc
-                if days_diff <= 30.0:
-                    monthly_score += sc
-            except Exception:
-                pass
+        try:
+            pe_res = sb.table("progress_events").select("*").eq("patient_uid", current_uid).execute()
+            events = pe_res.data or []
+            for ev in events:
+                raw_ts = ev.get("earned_at") or ev.get("created_at")
+                if not raw_ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                    days_diff = (now - dt).total_seconds() / 86400.0
+                    earned = ev.get("progress_earned", 0)
+                    if dt.date() == today_date:
+                        daily_score += earned
+                    if days_diff <= 7.0:
+                        weekly_score += earned
+                    if days_diff <= 30.0:
+                        monthly_score += earned
+                except Exception:
+                    pass
+        except Exception as pe_read_err:
+            print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
+
+        # Fallback to attempts table if no progress_events recorded yet
+        if daily_score == 0 and weekly_score == 0 and monthly_score == 0 and all_attempts:
+            for a in all_attempts:
+                raw_ts = a.get("attempted_at") or a.get("created_at")
+                if not raw_ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                    days_diff = (now - dt).total_seconds() / 86400.0
+                    sc = a.get("score", 0)
+                    if dt.date() == today_date:
+                        daily_score += sc
+                    if days_diff <= 7.0:
+                        weekly_score += sc
+                    if days_diff <= 30.0:
+                        monthly_score += sc
+                except Exception:
+                    pass
 
         return {
             "overall_progress": overall_progress,
