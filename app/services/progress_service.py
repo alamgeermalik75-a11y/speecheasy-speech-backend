@@ -467,3 +467,20 @@ class ProgressService:
             .offset(offset)
         )
         return list((await session.execute(stmt)).scalars().all())
+
+    @staticmethod
+    async def reset_progress(session: AsyncSession, patient_uid: str) -> Dict[str, Any]:
+        from sqlalchemy import delete
+        await session.execute(delete(Attempt).where(Attempt.patient_uid == patient_uid))
+        await session.execute(delete(ProgressEvent).where(ProgressEvent.patient_uid == patient_uid))
+        focus_stmt = select(FocusSound).where(FocusSound.patient_uid == patient_uid)
+        focus = (await session.execute(focus_stmt)).scalar_one_or_none()
+        if focus:
+            focus.alphabet_name = "bay"
+            focus.sound = "ب"
+            focus.progress = 0.0
+        await session.commit()
+        return {
+            "status": "success",
+            "message": "All progress and attempts reset to zero successfully."
+        }

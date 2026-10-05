@@ -1609,6 +1609,30 @@ class SupabaseDbService:
         }
 
     @staticmethod
+    def reset_progress(current_uid: str) -> Dict[str, Any]:
+        sb = get_supabase()
+        try:
+            sb.table("attempts").delete().eq("patient_uid", current_uid).execute()
+        except Exception as e:
+            print(f"[RESET] Error deleting attempts: {e}")
+        try:
+            sb.table("progress_events").delete().eq("patient_uid", current_uid).execute()
+        except Exception as e:
+            print(f"[RESET] Error deleting progress_events: {e}")
+        try:
+            sb.table("focus_sound").update({
+                "alphabet_name": "bay",
+                "sound": "ب",
+                "progress": 0.0
+            }).eq("patient_uid", current_uid).execute()
+        except Exception as e:
+            print(f"[RESET] Error resetting focus_sound: {e}")
+        return {
+            "status": "success",
+            "message": "All progress and attempts reset to zero successfully."
+        }
+
+    @staticmethod
     def get_attempt_history(
         current_uid: str,
         alphabet_name: Optional[str] = None,

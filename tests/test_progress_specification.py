@@ -489,3 +489,49 @@ def test_supabase_db_service_unit_methods():
     assert len(extracted) == 1
     assert extracted[0]["item_id"] == "item_pass"
     assert extracted[0]["alphabet_name"] == "bay"
+
+
+@pytest.mark.asyncio
+async def test_case_14_reset_progress_to_zero(client):
+    """
+    Test 14: User resets progress -> all details in DB and UI reset to zero:
+    - attempts deleted
+    - progress_events deleted
+    - overall progress, alphabet progress, daily progress all return 0.0
+    - history empty
+    """
+    headers = {"X-Patient-UID": "user_test_reset"}
+
+    # 1. Practice several items
+    await client.post(
+        "/api/v1/attempts",
+        json={"item_id": "bay_initial_0", "alphabet_name": "bay", "level_key": "words", "score": 90},
+        headers=headers
+    )
+    await client.post(
+        "/api/v1/attempts",
+        json={"item_id": "bay_initial_1", "alphabet_name": "bay", "level_key": "words", "score": 85},
+        headers=headers
+    )
+    ov_before = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
+    assert ov_before["alphabet_progress"] > 0
+    assert ov_before["categories"]["words"]["passed_items"] == 2
+
+    # 2. Call DELETE /api/v1/attempts/reset
+    res_del = await client.delete("/api/v1/attempts/reset", headers=headers)
+    assert res_del.status_code == 200
+    assert res_del.json()["status"] == "success"
+
+    # 3. Verify all progress returned to ZERO
+    ov_after = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
+    assert ov_after["alphabet_progress"] == 0.0
+    assert ov_after["overall_progress"] == 0.0
+    assert ov_after["daily_progress"] == 0.0
+    assert ov_after["weekly_progress"] == 0.0
+    assert ov_after["monthly_progress"] == 0.0
+    assert ov_after["categories"]["words"]["passed_items"] == 0
+    assert ov_after["categories"]["words"]["score_percentage"] == 0.0
+
+    # 4. Verify history is empty
+    hist_after = (await client.get("/api/v1/attempts/history", headers=headers)).json()
+    assert len(hist_after) == 0

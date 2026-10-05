@@ -98,3 +98,15 @@ async def get_practice_history(
         offset=offset
     )
     return attempts
+
+@router.delete("/reset", status_code=status.HTTP_200_OK)
+async def reset_practice_progress(
+    current_uid: str = Depends(get_current_user_uid),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Reset all practice progress, attempts, and progress events for authenticated user to zero.
+    """
+    if settings.SUPABASE_SERVICE_ROLE_KEY:
+        return SupabaseDbService.reset_progress(current_uid)
+    return await ProgressService.reset_progress(db, current_uid)
