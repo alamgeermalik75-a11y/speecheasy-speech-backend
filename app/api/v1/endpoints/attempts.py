@@ -71,7 +71,7 @@ async def get_progress_overview(
 async def get_practice_history(
     alphabet_name: Optional[str] = Query(None),
     level_key: Optional[str] = Query(None, pattern=r"^(words|sentences|fillBlanks|poems|story)$"),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     current_uid: str = Depends(get_current_user_uid),
     db: AsyncSession = Depends(get_db)
