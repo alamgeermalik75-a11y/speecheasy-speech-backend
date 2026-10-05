@@ -1107,6 +1107,153 @@ class SupabaseDbService:
 
 
     @staticmethod
+    def _compute_patient_overall_progress(attempts: List[Dict[str, Any]]) -> float:
+        from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
+        best_by_sound_and_level: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for a in attempts:
+            alpha = curriculum_manager._normalize_name(a.get("alphabet_name") or "")
+            lvl = a.get("level_key")
+            it = str(a.get("item_id") or "").strip()
+            sc = int(a.get("score") or 0)
+            if not alpha or lvl not in CATEGORY_ORDER or not it:
+                continue
+            if alpha not in best_by_sound_and_level:
+                best_by_sound_and_level[alpha] = {c: {} for c in CATEGORY_ORDER}
+            best_by_sound_and_level[alpha][lvl][it] = max(best_by_sound_and_level[alpha][lvl].get(it, 0), sc)
+
+        total_sound_pct = 0.0
+        num_alphabets = len(curriculum_manager.alphabet_sequence)
+        if num_alphabets <= 0:
+            return 0.0
+
+        for alpha_item in curriculum_manager.alphabet_sequence:
+            alpha_name = curriculum_manager._normalize_name(alpha_item.get("name", ""))
+            sound_best = best_by_sound_and_level.get(alpha_name, {})
+            sound_overall = 0.0
+            for c in CATEGORY_ORDER:
+                item_count = curriculum_manager.get_category_item_count(alpha_name, c)
+                if item_count > 0:
+                    c_best = sound_best.get(c, {})
+                    passed_count = sum(1 for s in c_best.values() if s >= 70)
+                    sound_overall += (passed_count / item_count) * 20.0
+            total_sound_pct += min(100.0, sound_overall)
+
+        return round(total_sound_pct / num_alphabets, 2)
+
+    @staticmethod
+    def _extract_first_time_passes(
+        events: List[Dict[str, Any]],
+        attempts: List[Dict[str, Any]],
+        user_tz: timezone
+    ) -> List[Dict[str, Any]]:
+        from app.curriculum.curriculum_manager import curriculum_manager
+
+        passes_by_item: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+
+        # 1. Authoritative first-time pass events where previous_score < 70 and new_score >= 70
+        for ev in events:
+            prev_sc = int(ev.get("previous_score") or 0)
+            new_sc = int(ev.get("new_score") or 0)
+            if new_sc >= 70 and prev_sc < 70:
+                raw_alpha = ev.get("alphabet_name") or ""
+                alpha_norm = curriculum_manager._normalize_name(raw_alpha)
+                lvl = (ev.get("level_key") or "words").strip()
+                it = str(ev.get("item_id") or "").strip()
+                if not alpha_norm or not it:
+                    continue
+
+                ts = ev.get("earned_at") or ev.get("created_at")
+                if not ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
+                except Exception:
+                    continue
+
+                key = (alpha_norm, lvl, it)
+                if key not in passes_by_item or dt < passes_by_item[key]["dt"]:
+                    item_count = curriculum_manager.get_category_item_count(alpha_norm, lvl)
+                    contrib = (1.0 / item_count) * 20.0 if item_count > 0 else 0.0
+                    passes_by_item[key] = {
+                        "alphabet_name": alpha_norm,
+                        "level_key": lvl,
+                        "item_id": it,
+                        "dt": dt,
+                        "date": dt.date(),
+                        "contribution": contrib,
+                    }
+
+        # 2. Passed attempts (score >= 70) not yet captured in progress_events
+        for a in attempts:
+            sc = int(a.get("score") or 0)
+            if sc >= 70:
+                raw_alpha = a.get("alphabet_name") or ""
+                alpha_norm = curriculum_manager._normalize_name(raw_alpha)
+                lvl = (a.get("level_key") or "words").strip()
+                it = str(a.get("item_id") or "").strip()
+                if not alpha_norm or not it:
+                    continue
+
+                key = (alpha_norm, lvl, it)
+                if key in passes_by_item:
+                    continue
+
+                ts = a.get("attempted_at") or a.get("created_at")
+                if not ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
+                except Exception:
+                    continue
+
+                item_count = curriculum_manager.get_category_item_count(alpha_norm, lvl)
+                contrib = (1.0 / item_count) * 20.0 if item_count > 0 else 0.0
+                passes_by_item[key] = {
+                    "alphabet_name": alpha_norm,
+                    "level_key": lvl,
+                    "item_id": it,
+                    "dt": dt,
+                    "date": dt.date(),
+                    "contribution": contrib,
+                }
+
+        return list(passes_by_item.values())
+
+    @staticmethod
+    def _compute_daily_gain_for_date(target_date: date, first_time_passes: List[Dict[str, Any]]) -> float:
+        day_passes = [p for p in first_time_passes if p["date"] == target_date]
+        if not day_passes:
+            return 0.0
+
+        sound_gains: Dict[str, float] = {}
+        for p in day_passes:
+            s_name = p["alphabet_name"]
+            sound_gains[s_name] = sound_gains.get(s_name, 0.0) + p["contribution"]
+
+        if not sound_gains:
+            return 0.0
+
+        avg_gain = sum(sound_gains.values()) / len(sound_gains)
+        return round(avg_gain, 2)
+
+    @staticmethod
+    def _compute_period_gain(start_date: date, end_date: date, first_time_passes: List[Dict[str, Any]]) -> float:
+        period_passes = [p for p in first_time_passes if start_date <= p["date"] <= end_date]
+        if not period_passes:
+            return 0.0
+
+        sound_gains: Dict[str, float] = {}
+        for p in period_passes:
+            s_name = p["alphabet_name"]
+            sound_gains[s_name] = sound_gains.get(s_name, 0.0) + p["contribution"]
+
+        if not sound_gains:
+            return 0.0
+
+        avg_gain = sum(sound_gains.values()) / len(sound_gains)
+        return round(avg_gain, 2)
+
+    @staticmethod
     def record_attempt(current_uid: str, item_id: str, alphabet_name: str, level_key: str, score: int) -> Dict[str, Any]:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
@@ -1122,6 +1269,7 @@ class SupabaseDbService:
         improved = False
         progress_earned = 0
         attempt_record: Dict[str, Any] = {}
+        is_first_pass = False
 
         if not existing_list:
             # CASE A: UNIQUE ITEM -> INSERT
@@ -1148,26 +1296,32 @@ class SupabaseDbService:
             improved = True
             progress_earned = score
 
-            # Insert into progress_events for new item improvement
-            try:
-                sb.table("progress_events").insert({
-                    "patient_uid": current_uid,
-                    "item_id": item,
-                    "alphabet_name": alpha,
-                    "level_key": lvl,
-                    "previous_score": 0,
-                    "new_score": score,
-                    "progress_earned": progress_earned,
-                    "earned_at": now_iso
-                }).execute()
-                print(f"[PROGRESS] progress_events INSERT (new item): score={score}, earned={progress_earned}")
-            except Exception as pe_err:
-                print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
+            if score >= 70:
+                is_first_pass = True
+                try:
+                    sb.table("progress_events").insert({
+                        "patient_uid": current_uid,
+                        "item_id": item,
+                        "alphabet_name": alpha,
+                        "level_key": lvl,
+                        "previous_score": 0,
+                        "new_score": score,
+                        "progress_earned": score,
+                        "earned_at": now_iso
+                    }).execute()
+                    print(f"[PROGRESS] FIRST-TIME PASS recorded (new item): item={item}, alpha={alpha}, score={score}")
+                except Exception as pe_err:
+                    print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
+            else:
+                print(f"[PROGRESS] Score {score} < 70 -> No first-pass event")
         else:
             existing = existing_list[0]
             old_score = existing.get("score", 0)
+            was_passed = (old_score >= 70)
+            is_now_passed = (score >= 70)
+
             if score > old_score:
-                # CASE B: SAME ITEM + HIGHER SCORE -> UPDATE
+                # CASE B: SAME ITEM + HIGHER SCORE -> UPDATE BEST SCORE
                 progress_earned = score - old_score
                 upd_res = sb.table("attempts").update({
                     "score": score,
@@ -1179,31 +1333,34 @@ class SupabaseDbService:
                     attempt_record = dict(existing, score=score, attempted_at=now_iso)
                 improved = True
 
-                # Insert into progress_events for higher score improvement
-                try:
-                    sb.table("progress_events").insert({
-                        "patient_uid": current_uid,
-                        "item_id": item,
-                        "alphabet_name": alpha,
-                        "level_key": lvl,
-                        "previous_score": old_score,
-                        "new_score": score,
-                        "progress_earned": progress_earned,
-                        "earned_at": now_iso
-                    }).execute()
-                    print(f"[PROGRESS] progress_events INSERT (higher score): old={old_score}, new={score}, earned={progress_earned}")
-                except Exception as pe_err:
-                    print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
+                if not was_passed and is_now_passed:
+                    is_first_pass = True
+                    try:
+                        sb.table("progress_events").insert({
+                            "patient_uid": current_uid,
+                            "item_id": item,
+                            "alphabet_name": alpha,
+                            "level_key": lvl,
+                            "previous_score": old_score,
+                            "new_score": score,
+                            "progress_earned": progress_earned,
+                            "earned_at": now_iso
+                        }).execute()
+                        print(f"[PROGRESS] FIRST-TIME PASS recorded: item={item}, alpha={alpha}, old={old_score}, new={score}")
+                    except Exception as pe_err:
+                        print(f"[PROGRESS] Failed to insert progress_events: {pe_err}")
+                else:
+                    print(f"[PROGRESS] Score improvement {old_score}->{score} (was_passed={was_passed}) -> NOT a new first-time pass")
             else:
                 # CASE C & D: SAME ITEM + EQUAL OR LOWER SCORE -> NO UPDATE
                 attempt_record = dict(existing)
                 improved = False
                 progress_earned = 0
-                print(f"[PROGRESS] NO progress_events (equal/lower score): current_best={old_score}, submitted={score}")
+                print(f"[PROGRESS] NO update (current_best={old_score}, submitted={score})")
 
-        # Milestone notification ONLY when improved to >= 70
+        # Milestone notification ONLY on first-time pass
         milestone_msg = None
-        if improved and score >= 70:
+        if improved and score >= 70 and is_first_pass:
             milestone_msg = f"Nice work! Score: {score}%"
             try:
                 sb.table("notifications").insert({
@@ -1215,7 +1372,7 @@ class SupabaseDbService:
             except Exception:
                 pass
 
-        # 3. Calculate category, alphabet, and overall progress
+        # 3. Calculate category, alphabet, and overall progress based on passed items (score >= 70)
         history_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).eq("alphabet_name", alpha).execute()
         attempts = history_res.data or []
 
@@ -1237,8 +1394,7 @@ class SupabaseDbService:
             passed_count = sum(1 for s in item_scores.values() if s >= 70)
 
             if item_count > 0:
-                score_sum = sum(item_scores.values())
-                score_pct = round((score_sum / (item_count * 100)) * 100, 2)
+                score_pct = round((passed_count / item_count) * 100, 2)
                 is_comp = (passed_count >= item_count)
             else:
                 score_pct = 0.0
@@ -1249,7 +1405,8 @@ class SupabaseDbService:
             if not is_comp:
                 all_categories_complete = False
 
-            alphabet_total_pct += score_pct * 0.20
+            course_contribution = (passed_count / item_count) * 20.0 if item_count > 0 else 0.0
+            alphabet_total_pct += course_contribution
             categories_res[c] = {
                 "score_percentage": score_pct,
                 "is_completed": is_comp,
@@ -1262,19 +1419,10 @@ class SupabaseDbService:
         category_progress = categories_res.get(lvl, {}).get("score_percentage", 0.0)
         is_cat_complete = categories_res.get(lvl, {}).get("is_completed", False)
 
-        # Overall progress
-        all_attempts_res = sb.table("attempts").select("score").eq("patient_uid", current_uid).execute()
-        total_score = sum(r.get("score", 0) for r in (all_attempts_res.data or []))
-        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
-
-        # Safe diagnostic logging
-        print(f"[PROGRESS] attempt received: patient_uid={current_uid}, item={item}, alpha={alpha}, level={lvl}, score={score}")
-        print(f"[PROGRESS] existing best = {0 if not existing_list else existing_list[0].get('score', 0)}")
-        print(f"[PROGRESS] submitted score = {score}")
-        print(f"[PROGRESS] improvement = {progress_earned}")
-        print(f"[PROGRESS] attempts DB result = {attempt_record}")
-        print(f"[PROGRESS] calculated category progress = {category_progress}")
+        # Overall curriculum progress
+        all_attempts_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).execute()
+        all_patient_attempts = all_attempts_res.data or []
+        overall_progress = SupabaseDbService._compute_patient_overall_progress(all_patient_attempts)
 
         # 4. Focus sound progression
         focus_res = sb.table("focus_sound").select("*").eq("patient_uid", current_uid).execute()
@@ -1344,69 +1492,6 @@ class SupabaseDbService:
         }
 
     @staticmethod
-    def _compute_sound_overall_for_patient_at_cutoff(
-        patient_events: List[Dict[str, Any]],
-        fallback_attempts: List[Dict[str, Any]],
-        alphabet_name: str,
-        cutoff_date: date,
-        user_tz: timezone
-    ) -> float:
-        from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
-
-        alpha_norm = curriculum_manager._normalize_name(alphabet_name)
-        items_best: Dict[str, Tuple[int, str]] = {}
-        for ev in patient_events:
-            ev_alpha = curriculum_manager._normalize_name(ev.get("alphabet_name") or "")
-            if ev_alpha != alpha_norm:
-                continue
-            ts = ev.get("earned_at") or ev.get("created_at")
-            if not ts:
-                continue
-            try:
-                dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
-                if dt.date() <= cutoff_date:
-                    it = ev.get("item_id")
-                    lvl = ev.get("level_key") or "words"
-                    sc = int(ev.get("new_score") or 0)
-                    if it not in items_best or sc > items_best[it][0]:
-                        items_best[it] = (sc, lvl)
-            except Exception:
-                pass
-
-        if fallback_attempts:
-            for a in fallback_attempts:
-                a_alpha = curriculum_manager._normalize_name(a.get("alphabet_name") or "")
-                if a_alpha != alpha_norm:
-                    continue
-                it = a.get("item_id")
-                if it in items_best:
-                    continue
-                ts = a.get("attempted_at") or a.get("created_at")
-                if not ts:
-                    continue
-                try:
-                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(user_tz)
-                    if dt.date() <= cutoff_date:
-                        lvl = a.get("level_key") or "words"
-                        sc = int(a.get("score") or 0)
-                        items_best[it] = (sc, lvl)
-                except Exception:
-                    pass
-
-        if not items_best:
-            return 0.0
-
-        sound_overall = 0.0
-        for c in CATEGORY_ORDER:
-            item_count = curriculum_manager.get_category_item_count(alpha_norm, c)
-            c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
-            if item_count > 0:
-                score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
-                sound_overall += score_pct * 0.20
-
-        return round(sound_overall, 2)
-
-    @staticmethod
     def get_progress_overview(current_uid: str, alphabet_name: Optional[str] = None, tz_offset_minutes: int = 0) -> Dict[str, Any]:
         from app.curriculum.curriculum_manager import curriculum_manager, CATEGORY_ORDER
         sb = get_supabase()
@@ -1442,8 +1527,7 @@ class SupabaseDbService:
             passed_count = sum(1 for s in item_scores.values() if s >= 70)
 
             if item_count > 0:
-                score_sum = sum(item_scores.values())
-                score_pct = round((score_sum / (item_count * 100)) * 100, 2)
+                score_pct = round((passed_count / item_count) * 100, 2)
                 is_comp = (passed_count >= item_count)
             else:
                 score_pct = 0.0
@@ -1451,7 +1535,8 @@ class SupabaseDbService:
 
             is_unlocked = previous_complete
             previous_complete = is_comp
-            alphabet_total_pct += score_pct * 0.20
+            course_contribution = (passed_count / item_count) * 20.0 if item_count > 0 else 0.0
+            alphabet_total_pct += course_contribution
 
             categories_res[c] = {
                 "score_percentage": score_pct,
@@ -1463,11 +1548,8 @@ class SupabaseDbService:
 
         all_attempts_res = sb.table("attempts").select("*").eq("patient_uid", current_uid).execute()
         all_attempts = all_attempts_res.data or []
-        total_score = sum(r.get("score", 0) for r in all_attempts)
-        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        overall_progress = round((total_score / (total_curriculum_items * 100)) * 100, 2) if total_curriculum_items > 0 else 0.0
+        overall_progress = SupabaseDbService._compute_patient_overall_progress(all_attempts)
 
-        # Daily, weekly, monthly calculated from DAY-TO-DAY CHANGE of each alphabet's Sound Overall %
         user_tz = timezone(timedelta(minutes=tz_offset_minutes))
         now = datetime.now(user_tz)
         today_date = now.date()
@@ -1479,95 +1561,40 @@ class SupabaseDbService:
         except Exception as pe_read_err:
             print(f"[PROGRESS] Error reading progress_events for overview: {pe_read_err}")
 
-        # Check ALL 36 curriculum alphabets/sounds individually + any practiced alphabet aliases
-        all_sound_keys: List[str] = []
-        seen_sounds = set()
-        for alpha_item in curriculum_manager.alphabet_sequence:
-            name = alpha_item.get("name")
-            if name and name not in seen_sounds:
-                seen_sounds.add(name)
-                all_sound_keys.append(name)
-        for ev in events:
-            a_name = ev.get("alphabet_name")
-            if a_name and a_name not in seen_sounds:
-                seen_sounds.add(a_name)
-                all_sound_keys.append(a_name)
-        for a in all_attempts:
-            a_name = a.get("alphabet_name")
-            if a_name and a_name not in seen_sounds:
-                seen_sounds.add(a_name)
-                all_sound_keys.append(a_name)
+        # Extract authoritative first-time pass events
+        first_time_passes = SupabaseDbService._extract_first_time_passes(events, all_attempts, user_tz)
 
-        # 1. Last 7 Days history breakdown in local time based on Sound Overall changes
+        # 1. Last 7 Days daily history breakdown based on FIRST-TIME PASSES and multi-sound average rule
         daily_history: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
             day_dt = today_date - timedelta(days=i)
-            prev_dt = day_dt - timedelta(days=1)
-            day_progress = 0.0
-            for alpha_key in all_sound_keys:
-                so_today = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                    events, all_attempts, alpha_key, day_dt, user_tz
-                )
-                so_prev = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                    events, all_attempts, alpha_key, prev_dt, user_tz
-                )
-                sound_diff = max(round(so_today - so_prev, 2), 0.0)
-                day_progress += sound_diff
-
+            day_progress = SupabaseDbService._compute_daily_gain_for_date(day_dt, first_time_passes)
             daily_history.append({
                 "date": day_dt.isoformat(),
                 "label": f"{day_dt.day}/{day_dt.month}",
-                "progress": round(day_progress, 2),
+                "progress": day_progress,
             })
 
         # 2. Last 4 Weeks history breakdown (ordered from Wk 1 to Wk 4)
         weekly_history: List[Dict[str, Any]] = []
         for w in range(3, -1, -1):
-            w_start_dt = today_date - timedelta(days=(w + 1) * 7)
+            w_start_dt = today_date - timedelta(days=(w + 1) * 7 - 1)
             w_end_dt = today_date - timedelta(days=w * 7)
-            week_progress = 0.0
-            for alpha_key in all_sound_keys:
-                so_end = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                    events, all_attempts, alpha_key, w_end_dt, user_tz
-                )
-                so_start = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                    events, all_attempts, alpha_key, w_start_dt, user_tz
-                )
-                w_diff = max(round(so_end - so_start, 2), 0.0)
-                week_progress += w_diff
+            week_gain = SupabaseDbService._compute_period_gain(w_start_dt, w_end_dt, first_time_passes)
             weekly_history.append({
                 "label": f"Wk {4 - w}",
-                "progress": round(week_progress, 2),
+                "progress": week_gain,
             })
 
-        # Daily progress is today's total Sound Overall positive changes
+        # Daily progress is today's first-time pass gains (averaged across sounds)
         daily_progress_pct = daily_history[-1]["progress"] if daily_history else 0.0
 
-        # Weekly progress is total positive changes across all sounds in last 7 days
-        week_7d_ago = today_date - timedelta(days=7)
-        weekly_progress_pct = 0.0
-        for alpha_key in all_sound_keys:
-            so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                events, all_attempts, alpha_key, today_date, user_tz
-            )
-            so_7d = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                events, all_attempts, alpha_key, week_7d_ago, user_tz
-            )
-            weekly_progress_pct += max(round(so_now - so_7d, 2), 0.0)
-        weekly_progress_pct = round(weekly_progress_pct, 2)
+        # Weekly progress is current week's (Wk 4) first-time pass gains
+        weekly_progress_pct = weekly_history[-1]["progress"] if weekly_history else 0.0
 
-        # Monthly progress is total positive changes across all sounds in last 30 days
-        month_30d_ago = today_date - timedelta(days=30)
-        monthly_progress_pct = 0.0
-        for alpha_key in all_sound_keys:
-            so_now = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                events, all_attempts, alpha_key, today_date, user_tz
-            )
-            so_30d = SupabaseDbService._compute_sound_overall_for_patient_at_cutoff(
-                events, all_attempts, alpha_key, month_30d_ago, user_tz
-            )
-            monthly_progress_pct += max(round(so_now - so_30d, 2), 0.0)
-        monthly_progress_pct = round(monthly_progress_pct, 2)
+        # Monthly progress is last 30 days first-time pass gains (averaged across practicing sounds)
+        month_30d_start = today_date - timedelta(days=29)
+        monthly_progress_pct = SupabaseDbService._compute_period_gain(month_30d_start, today_date, first_time_passes)
 
         return {
             "overall_progress": overall_progress,

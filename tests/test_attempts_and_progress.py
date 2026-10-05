@@ -191,9 +191,8 @@ async def test_category_gating_and_calculation(client):
     assert ov1["categories"]["sentences"]["is_unlocked"] is False
 
     # TEST 7: Check category score percentage formula:
-    # (sum_best_scores / (total_words * 100)) * 100
-    expected_sum = (total_words - 1) * 100 + 65
-    expected_pct = round((expected_sum / (total_words * 100)) * 100, 2)
+    # (passed_items / total_words) * 100
+    expected_pct = round(((total_words - 1) / total_words) * 100, 2)
     assert ov1["categories"]["words"]["score_percentage"] == expected_pct
 
     # TEST 9: Improve last item to 80 (>= 70) -> Words becomes complete, Sentences unlocks!
@@ -287,12 +286,15 @@ async def test_alphabet_completion_and_next_sound(client):
 async def test_daily_and_weekly_progress(client):
     """
     Covers:
-    TEST 12 — DAILY PROGRESS: genuine score improvements contribute
-    TEST 13 — WEEKLY PROGRESS: genuine score improvements contribute
+    TEST 12 — DAILY PROGRESS: only FIRST-TIME passes (>= 70) contribute
+    TEST 13 — REPEAT PRACTICE: score < 70 or repeating already-passed does NOT add daily progress
     """
     headers = {"X-Patient-UID": "user_analytics_daily"}
+    alpha = "bay"
+    word_items = curriculum_manager.get_category_items(alpha, "words")
+    total_words = len(word_items)
 
-    # 1. First practice: score 60
+    # 1. First practice: score 60 (< 70 -> not passed, daily progress = 0)
     r1 = await client.post(
         "/api/v1/attempts",
         json={"item_id": "bay_initial_0", "alphabet_name": "bay", "level_key": "words", "score": 60},
@@ -300,10 +302,10 @@ async def test_daily_and_weekly_progress(client):
     )
     assert r1.status_code == 201
     ov1 = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
-    assert ov1["daily_progress"] == 60
-    assert ov1["weekly_progress"] == 60
+    assert ov1["daily_progress"] == 0.0
+    assert ov1["weekly_progress"] == 0.0
 
-    # 2. Same score (60 -> 60): daily progress does NOT increase
+    # 2. Same score (60 -> 60): daily progress remains 0
     r2 = await client.post(
         "/api/v1/attempts",
         json={"item_id": "bay_initial_0", "alphabet_name": "bay", "level_key": "words", "score": 60},
@@ -311,9 +313,9 @@ async def test_daily_and_weekly_progress(client):
     )
     assert r2.status_code == 201
     ov2 = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
-    assert ov2["daily_progress"] == 60
+    assert ov2["daily_progress"] == 0.0
 
-    # 3. Improvement (60 -> 85): daily progress increases by +25
+    # 3. First-time pass (60 -> 85): daily progress increases by 1 item course contribution: (1 / total_words) * 20%
     r3 = await client.post(
         "/api/v1/attempts",
         json={"item_id": "bay_initial_0", "alphabet_name": "bay", "level_key": "words", "score": 85},
@@ -321,5 +323,16 @@ async def test_daily_and_weekly_progress(client):
     )
     assert r3.status_code == 201
     ov3 = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
-    assert ov3["daily_progress"] == 85
-    assert ov3["weekly_progress"] == 85
+    expected_gain = round((1.0 / total_words) * 20.0, 2)
+    assert ov3["daily_progress"] == expected_gain
+    assert ov3["weekly_progress"] == expected_gain
+
+    # 4. Improvement after already passed (85 -> 95): NO new daily progress!
+    r4 = await client.post(
+        "/api/v1/attempts",
+        json={"item_id": "bay_initial_0", "alphabet_name": "bay", "level_key": "words", "score": 95},
+        headers=headers
+    )
+    assert r4.status_code == 201
+    ov4 = (await client.get("/api/v1/attempts/overview?alphabet_name=bay", headers=headers)).json()
+    assert ov4["daily_progress"] == expected_gain  # Still same, no new pass

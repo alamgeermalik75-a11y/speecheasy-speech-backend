@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy import select, and_, desc, asc, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +53,7 @@ class ProgressService:
         progress_earned = 0
         target_attempt = None
 
+        is_first_pass = False
         if existing is None:
             # CASE A: UNIQUE ITEM -> INSERT
             target_attempt = Attempt(
@@ -66,37 +67,45 @@ class ProgressService:
             session.add(target_attempt)
             improved = True
             progress_earned = new_score
-            # Log progress event
-            event = ProgressEvent(
-                patient_uid=patient_uid,
-                item_id=item_id,
-                alphabet_name=alpha_name,
-                level_key=lvl_key,
-                previous_score=0,
-                new_score=new_score,
-                progress_earned=new_score,
-                earned_at=attempt_time
-            )
-            session.add(event)
+
+            if new_score >= ProgressService.PASSING_SCORE_THRESHOLD:
+                is_first_pass = True
+                event = ProgressEvent(
+                    patient_uid=patient_uid,
+                    item_id=item_id,
+                    alphabet_name=alpha_name,
+                    level_key=lvl_key,
+                    previous_score=0,
+                    new_score=new_score,
+                    progress_earned=new_score,
+                    earned_at=attempt_time
+                )
+                session.add(event)
         elif new_score > existing.score:
             # CASE B: SAME ITEM + HIGHER SCORE -> UPDATE
-            progress_earned = new_score - existing.score
+            old_score = existing.score
+            was_passed = old_score >= ProgressService.PASSING_SCORE_THRESHOLD
+            is_now_passed = new_score >= ProgressService.PASSING_SCORE_THRESHOLD
+
+            progress_earned = new_score - old_score
             existing.score = new_score
             existing.attempted_at = attempt_time
             target_attempt = existing
             improved = True
-            # Log progress event
-            event = ProgressEvent(
-                patient_uid=patient_uid,
-                item_id=item_id,
-                alphabet_name=alpha_name,
-                level_key=lvl_key,
-                previous_score=existing.score,
-                new_score=new_score,
-                progress_earned=progress_earned,
-                earned_at=attempt_time
-            )
-            session.add(event)
+
+            if not was_passed and is_now_passed:
+                is_first_pass = True
+                event = ProgressEvent(
+                    patient_uid=patient_uid,
+                    item_id=item_id,
+                    alphabet_name=alpha_name,
+                    level_key=lvl_key,
+                    previous_score=old_score,
+                    new_score=new_score,
+                    progress_earned=progress_earned,
+                    earned_at=attempt_time
+                )
+                session.add(event)
         else:
             # CASE C & D: SAME ITEM + EQUAL OR LOWER SCORE -> NO UPDATE
             target_attempt = existing
@@ -106,8 +115,8 @@ class ProgressService:
         await session.flush()
 
         milestone_msg: Optional[str] = None
-        # Achievement Notification ONLY when achieving or improving to high score >= 70
-        if improved and new_score >= ProgressService.PASSING_SCORE_THRESHOLD:
+        # Milestone notification ONLY on first-time pass
+        if improved and new_score >= ProgressService.PASSING_SCORE_THRESHOLD and is_first_pass:
             milestone_msg = f"Nice work! Score: {new_score}%"
             notif = Notification(
                 patient_uid=patient_uid,
@@ -195,8 +204,7 @@ class ProgressService:
         patient_uid: str,
         alphabet_name: str
     ) -> Dict[str, Any]:
-        alpha = alphabet_name.lower().strip()
-        # Query all unique attempts for this user on this alphabet
+        alpha = curriculum_manager._normalize_name(alphabet_name)
         stmt = select(Attempt).where(
             and_(
                 Attempt.patient_uid == patient_uid,
@@ -224,20 +232,19 @@ class ProgressService:
             passed_count = sum(1 for s in item_scores.values() if s >= ProgressService.PASSING_SCORE_THRESHOLD)
 
             if item_count > 0:
-                score_sum = sum(item_scores.values())
-                score_pct = round((score_sum / (item_count * 100)) * 100, 2)
+                score_pct = round((passed_count / item_count) * 100, 2)
                 is_comp = (passed_count >= item_count)
             else:
-                score_pct = 100.0
-                is_comp = True
+                score_pct = 0.0
+                is_comp = False
 
             is_unlocked = previous_complete
             previous_complete = is_comp
             if not is_comp:
                 all_categories_complete = False
 
-            # Each category contributes exactly 20%
-            alphabet_total_percentage += score_pct * 0.20
+            course_contribution = (passed_count / item_count) * 20.0 if item_count > 0 else 0.0
+            alphabet_total_percentage += course_contribution
 
             categories_res[lvl] = {
                 "score_percentage": score_pct,
@@ -259,14 +266,39 @@ class ProgressService:
         session: AsyncSession,
         patient_uid: str
     ) -> float:
-        # Sum of all stored best scores across all curriculum items
-        stmt = select(func.sum(Attempt.score)).where(Attempt.patient_uid == patient_uid)
-        total_score = (await session.execute(stmt)).scalar() or 0
-        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        max_possible_score = total_curriculum_items * 100
-        if max_possible_score <= 0:
+        stmt = select(Attempt).where(Attempt.patient_uid == patient_uid)
+        attempts = list((await session.execute(stmt)).scalars().all())
+
+        best_by_sound_and_level: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for a in attempts:
+            alpha = curriculum_manager._normalize_name(a.alphabet_name or "")
+            lvl = a.level_key
+            it = str(a.item_id or "").strip()
+            sc = int(a.score or 0)
+            if not alpha or lvl not in CATEGORY_ORDER or not it:
+                continue
+            if alpha not in best_by_sound_and_level:
+                best_by_sound_and_level[alpha] = {c: {} for c in CATEGORY_ORDER}
+            best_by_sound_and_level[alpha][lvl][it] = max(best_by_sound_and_level[alpha][lvl].get(it, 0), sc)
+
+        total_sound_pct = 0.0
+        num_alphabets = len(curriculum_manager.alphabet_sequence)
+        if num_alphabets <= 0:
             return 0.0
-        return round((total_score / max_possible_score) * 100, 2)
+
+        for alpha_item in curriculum_manager.alphabet_sequence:
+            alpha_name = curriculum_manager._normalize_name(alpha_item.get("name", ""))
+            sound_best = best_by_sound_and_level.get(alpha_name, {})
+            sound_overall = 0.0
+            for c in CATEGORY_ORDER:
+                item_count = curriculum_manager.get_category_item_count(alpha_name, c)
+                if item_count > 0:
+                    c_best = sound_best.get(c, {})
+                    passed_count = sum(1 for s in c_best.values() if s >= ProgressService.PASSING_SCORE_THRESHOLD)
+                    sound_overall += (passed_count / item_count) * 20.0
+            total_sound_pct += min(100.0, sound_overall)
+
+        return round(total_sound_pct / num_alphabets, 2)
 
     @staticmethod
     async def get_progress_overview(
@@ -279,136 +311,114 @@ class ProgressService:
         alpha_progress_data = await ProgressService.get_alphabet_progress_internal(session, patient_uid, alpha)
         overall_progress = await ProgressService.get_overall_progress_internal(session, patient_uid)
 
-        # Calculate daily, weekly, monthly new progress earned as overall percentage increases
         user_tz = timezone(timedelta(minutes=tz_offset_minutes))
         now = datetime.now(user_tz)
         today_date = now.date()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_start = now - timedelta(days=7)
-        month_start = now - timedelta(days=30)
-        total_curriculum_items = curriculum_manager.get_total_curriculum_items()
-        # Collect events and attempts for this patient
+
         events_stmt = select(ProgressEvent).where(ProgressEvent.patient_uid == patient_uid)
         patient_events = list((await session.execute(events_stmt)).scalars().all())
 
         attempts_stmt = select(Attempt).where(Attempt.patient_uid == patient_uid)
         patient_attempts = list((await session.execute(attempts_stmt)).scalars().all())
 
-        # Check ALL 36 curriculum alphabets/sounds individually + any practiced alphabet aliases
-        all_sound_keys: List[str] = []
-        seen_sounds = set()
-        for alpha_item in curriculum_manager.alphabet_sequence:
-            name = alpha_item.get("name")
-            if name and name not in seen_sounds:
-                seen_sounds.add(name)
-                all_sound_keys.append(name)
+        # Extract first-time passes
+        passes_by_item: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         for ev in patient_events:
-            a_name = ev.alphabet_name
-            if a_name and a_name not in seen_sounds:
-                seen_sounds.add(a_name)
-                all_sound_keys.append(a_name)
-        for a in patient_attempts:
-            a_name = a.alphabet_name
-            if a_name and a_name not in seen_sounds:
-                seen_sounds.add(a_name)
-                all_sound_keys.append(a_name)
-
-        def compute_so_at(alpha_name: str, cutoff: date) -> float:
-            alpha_norm = curriculum_manager._normalize_name(alpha_name)
-            items_best: Dict[str, Tuple[int, str]] = {}
-            for ev in patient_events:
-                ev_alpha = curriculum_manager._normalize_name(ev.alphabet_name or "")
-                if ev_alpha != alpha_norm:
+            prev_sc = int(ev.previous_score or 0)
+            new_sc = int(ev.new_score or 0)
+            if new_sc >= ProgressService.PASSING_SCORE_THRESHOLD and prev_sc < ProgressService.PASSING_SCORE_THRESHOLD:
+                alpha_norm = curriculum_manager._normalize_name(ev.alphabet_name or "")
+                lvl = (ev.level_key or "words").strip()
+                it = str(ev.item_id or "").strip()
+                if not alpha_norm or not it or not ev.earned_at:
                     continue
-                if ev.earned_at:
-                    dt = ev.earned_at.astimezone(user_tz) if ev.earned_at.tzinfo else ev.earned_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
-                    if dt.date() <= cutoff:
-                        it = ev.item_id
-                        lvl = ev.level_key or "words"
-                        sc = ev.new_score or 0
-                        if it not in items_best or sc > items_best[it][0]:
-                            items_best[it] = (sc, lvl)
+                dt = ev.earned_at.astimezone(user_tz) if ev.earned_at.tzinfo else ev.earned_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
+                key = (alpha_norm, lvl, it)
+                if key not in passes_by_item or dt < passes_by_item[key]["dt"]:
+                    item_count = curriculum_manager.get_category_item_count(alpha_norm, lvl)
+                    contrib = (1.0 / item_count) * 20.0 if item_count > 0 else 0.0
+                    passes_by_item[key] = {
+                        "alphabet_name": alpha_norm,
+                        "level_key": lvl,
+                        "item_id": it,
+                        "dt": dt,
+                        "date": dt.date(),
+                        "contribution": contrib,
+                    }
 
-            if patient_attempts:
-                for a in patient_attempts:
-                    a_alpha = curriculum_manager._normalize_name(a.alphabet_name or "")
-                    if a_alpha != alpha_norm:
-                        continue
-                    it = a.item_id
-                    if it in items_best:
-                        continue
-                    if a.attempted_at:
-                        dt = a.attempted_at.astimezone(user_tz) if a.attempted_at.tzinfo else a.attempted_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
-                        if dt.date() <= cutoff:
-                            lvl = a.level_key or "words"
-                            sc = a.score or 0
-                            items_best[it] = (sc, lvl)
+        for a in patient_attempts:
+            sc = int(a.score or 0)
+            if sc >= ProgressService.PASSING_SCORE_THRESHOLD:
+                alpha_norm = curriculum_manager._normalize_name(a.alphabet_name or "")
+                lvl = (a.level_key or "words").strip()
+                it = str(a.item_id or "").strip()
+                if not alpha_norm or not it or not a.attempted_at:
+                    continue
+                key = (alpha_norm, lvl, it)
+                if key in passes_by_item:
+                    continue
+                dt = a.attempted_at.astimezone(user_tz) if a.attempted_at.tzinfo else a.attempted_at.replace(tzinfo=timezone.utc).astimezone(user_tz)
+                item_count = curriculum_manager.get_category_item_count(alpha_norm, lvl)
+                contrib = (1.0 / item_count) * 20.0 if item_count > 0 else 0.0
+                passes_by_item[key] = {
+                    "alphabet_name": alpha_norm,
+                    "level_key": lvl,
+                    "item_id": it,
+                    "dt": dt,
+                    "date": dt.date(),
+                    "contribution": contrib,
+                }
 
-            if not items_best:
+        first_time_passes = list(passes_by_item.values())
+
+        def compute_daily_gain(target_date: date) -> float:
+            day_passes = [p for p in first_time_passes if p["date"] == target_date]
+            if not day_passes:
                 return 0.0
-            so = 0.0
-            for c in CATEGORY_ORDER:
-                item_count = curriculum_manager.get_category_item_count(alpha_norm, c)
-                c_scores = [sc for (it, (sc, lvl)) in items_best.items() if lvl == c]
-                if item_count > 0:
-                    score_pct = round((sum(c_scores) / (item_count * 100)) * 100, 2)
-                    so += score_pct * 0.20
-            return round(so, 2)
+            sound_gains: Dict[str, float] = {}
+            for p in day_passes:
+                s_name = p["alphabet_name"]
+                sound_gains[s_name] = sound_gains.get(s_name, 0.0) + p["contribution"]
+            if not sound_gains:
+                return 0.0
+            return round(sum(sound_gains.values()) / len(sound_gains), 2)
 
-        # 1. Last 7 Days history breakdown in local time based on Sound Overall changes
+        def compute_period_gain(start_date: date, end_date: date) -> float:
+            period_passes = [p for p in first_time_passes if start_date <= p["date"] <= end_date]
+            if not period_passes:
+                return 0.0
+            sound_gains: Dict[str, float] = {}
+            for p in period_passes:
+                s_name = p["alphabet_name"]
+                sound_gains[s_name] = sound_gains.get(s_name, 0.0) + p["contribution"]
+            if not sound_gains:
+                return 0.0
+            return round(sum(sound_gains.values()) / len(sound_gains), 2)
+
+        # 1. Last 7 Days history breakdown
         daily_history: List[Dict[str, Any]] = []
         for i in range(6, -1, -1):
             day_dt = today_date - timedelta(days=i)
-            prev_dt = day_dt - timedelta(days=1)
-            day_progress = 0.0
-            for alpha_key in all_sound_keys:
-                so_today = compute_so_at(alpha_key, day_dt)
-                so_prev = compute_so_at(alpha_key, prev_dt)
-                sound_diff = max(round(so_today - so_prev, 2), 0.0)
-                day_progress += sound_diff
-
             daily_history.append({
                 "date": day_dt.isoformat(),
                 "label": f"{day_dt.day}/{day_dt.month}",
-                "progress": round(day_progress, 2),
+                "progress": compute_daily_gain(day_dt),
             })
 
-        # 2. Last 4 Weeks history breakdown (ordered from Wk 1 to Wk 4)
+        # 2. Last 4 Weeks history breakdown
         weekly_history: List[Dict[str, Any]] = []
         for w in range(3, -1, -1):
-            w_start_dt = today_date - timedelta(days=(w + 1) * 7)
+            w_start_dt = today_date - timedelta(days=(w + 1) * 7 - 1)
             w_end_dt = today_date - timedelta(days=w * 7)
-            week_progress = 0.0
-            for alpha_key in all_sound_keys:
-                so_end = compute_so_at(alpha_key, w_end_dt)
-                so_start = compute_so_at(alpha_key, w_start_dt)
-                w_diff = max(round(so_end - so_start, 2), 0.0)
-                week_progress += w_diff
             weekly_history.append({
                 "label": f"Wk {4 - w}",
-                "progress": round(week_progress, 2),
+                "progress": compute_period_gain(w_start_dt, w_end_dt),
             })
 
-        # Daily progress is today's total Sound Overall positive changes
         daily_progress_pct = daily_history[-1]["progress"] if daily_history else 0.0
-
-        # Weekly progress is total positive changes across all sounds in last 7 days
-        week_7d_ago = today_date - timedelta(days=7)
-        weekly_progress_pct = 0.0
-        for alpha_key in all_sound_keys:
-            so_now = compute_so_at(alpha_key, today_date)
-            so_7d = compute_so_at(alpha_key, week_7d_ago)
-            weekly_progress_pct += max(round(so_now - so_7d, 2), 0.0)
-        weekly_progress_pct = round(weekly_progress_pct, 2)
-
-        # Monthly progress is total positive changes across all sounds in last 30 days
-        month_30d_ago = today_date - timedelta(days=30)
-        monthly_progress_pct = 0.0
-        for alpha_key in all_sound_keys:
-            so_now = compute_so_at(alpha_key, today_date)
-            so_30d = compute_so_at(alpha_key, month_30d_ago)
-            monthly_progress_pct += max(round(so_now - so_30d, 2), 0.0)
-        monthly_progress_pct = round(monthly_progress_pct, 2)
+        weekly_progress_pct = weekly_history[-1]["progress"] if weekly_history else 0.0
+        month_30d_start = today_date - timedelta(days=29)
+        monthly_progress_pct = compute_period_gain(month_30d_start, today_date)
 
         # Build CategoryProgressDetail map
         cats: Dict[str, CategoryProgressDetail] = {}
